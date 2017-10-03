@@ -70,11 +70,9 @@ int main(int argc, char* argv[]) {
       exit(1);
   }
 
-
   while(readline(buff, 256, fd) != 0){
-    printf("readline returned ---> %s\n", buff);
+    printf("\nreadline returned ---> %s\n", buff);
   }
-
 
   /* Use µnit here. */
   return munit_suite_main(&test_suite, (void*) "µnit", argc, argv);
