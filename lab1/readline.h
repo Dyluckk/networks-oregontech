@@ -5,6 +5,8 @@
 // Author: Phil Howard
 
 #include <sys/types.h>
+#include <stdio.h>
+#include "readblocks.h"
 
 //**********************************************************
 // read from a file descriptor a line at a time

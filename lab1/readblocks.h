@@ -19,7 +19,7 @@
 //
 // name: null terminated string containing the path for the file to be opened
 //
-// Return value: 
+// Return value:
 //      On success, returns the file descriptor (a non-negative value) for the
 //      file that was opened.
 //
@@ -58,5 +58,3 @@ int close_blocks(int fd);
 // Note: this function is just a wrapper for:
 //      read(fd, buff, BLOCK_SIZE);
 ssize_t read_block(int fd, void *buff);
-
-

@@ -43,4 +43,3 @@ ssize_t read_block(int fd, void *buff)
 {
     return read(fd, buff, BLOCK_SIZE);
 }
-

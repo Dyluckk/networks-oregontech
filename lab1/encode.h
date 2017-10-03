@@ -3,10 +3,13 @@
 // *****************************************************
 // Declaration of functions for marshalling request_t structures
 //
-// Author: Philip Howard
-// Email:  phil.howard@oit.edu
+// Author: Zachary Wentworth
+// Email:  zachary.wentworth@oit.edu
 
 #include "nameserver.h"
+
+#include <stdlib.h>
+#include <arpa/inet.h>
 
 // *****************************************************
 // encode a request_t into network order
@@ -19,7 +22,7 @@
 // return value:
 //     on success returns buff
 //     on failure returns NULL
-void *encode(request_t *request, void *buff);
+void *encode(request_t* request, void *buff);
 
 // *****************************************************
 // check's the validity of a request
@@ -27,16 +30,16 @@ void *encode(request_t *request, void *buff);
 // Checks include:
 //      msg_type is a valid value
 //      status is a valid value
-//      service_name is null terminated and all bytes after the initial null 
+//      service_name is null terminated and all bytes after the initial null
 //                   are zero.
-//      
+//
 //      NOTE: is_invalid can be called on a request in either network byte
 //      order or host byte order.
 //
 // return value:
 //      if request is valid, return 0
 //      else return an error code indicating what was invalid.
-int is_invalid(request_t *request);
+int is_invalid(request_t* request);
 
 // *****************************************************
 // decode a request_t from network order
@@ -52,4 +55,4 @@ int is_invalid(request_t *request);
 //     on failure returns NULL
 //
 // Note: decode calls is_invalid(buff) prior to decoding
-request_t *decode(void *buff, request_t *decoded);
+request_t *decode(void* buff, request_t *decoded);
