@@ -1,8 +1,13 @@
+// Unit test suite for encode and readline
+//
+// Author: Zachary Wentworth
+// Email:  zachary.wentworth@oit.edu
+
 #define MUNIT_ENABLE_ASSERT_ALIASES
-#include "../unit/munit.h"
-#include "../lab1/encode.h"
-#include "../lab1/nameserver.h"
-#include "../lab1/readline.h"
+#include "./lib/unit/munit.h"
+#include "./src/encode.h"
+#include "./src/nameserver.h"
+#include "./src/readline.h"
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4127)
@@ -139,7 +144,7 @@ invalid_msg_type_test() {
 static MunitResult
 readline_test() {
   int fd;
-  char* file_name = "my_file";
+  char* file_name = "test_text_file";
   char buff[32];
 
   char expectedLines[8][12] = {"hello_san1\n", "hello_san2\n", "hello_san3\n",

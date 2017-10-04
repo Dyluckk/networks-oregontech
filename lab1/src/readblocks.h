@@ -2,8 +2,8 @@
 //******************************************************
 // Declare functions for opening and reading files a buffer at a time
 //
-// Author: Philip Howard
-// Email:  phil.howard@oit.edu
+// Author: Zachary Wentworth
+// Email:  zachary.wentworth@oit.edu
 //
 //******************************************************
 

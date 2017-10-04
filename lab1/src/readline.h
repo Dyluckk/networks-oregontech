@@ -2,7 +2,8 @@
 //*****************************************************
 // Declare a function that reads from a file descriptor a line at a time
 //
-// Author: Phil Howard
+// Author: Zachary Wentworth
+// Email:  zachary.wentworth@oit.edu
 
 #include <sys/types.h>
 #include <stdio.h>

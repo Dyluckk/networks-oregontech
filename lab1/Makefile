@@ -1,43 +1,55 @@
-##**************************************
-## Makefile
-##
-## Build routine for lab 1
-##
-## Author: Zachary Wentworth
-## zachary.wentworth@oit.edu
-##
-## Date: Sept. 27, 2017
-##
+# Using µnit is very simple; just include the header and add the C
+# file to your sources.  That said, here is a simple Makefile to build
+# the lab1.spec.
 
-COPTS=-Wall -g -c  -O0 -std=c99
+CSTD:=99
+OPENMP:=n
+ASAN:=n
+UBSAN:=n
+EXTENSION:=
+TEST_ENV:=
+CFLAGS:=
+AGGRESSIVE_WARNINGS=n
 
-all: encode
-	# nameserver\
-	# readblocks\
-	# readline
+ifeq ($(CC),pgcc)
+        CFLAGS+=-c$(CSTD)
+else
+        CFLAGS+=-std=c$(CSTD)
+endif
+
+ifeq ($(OPENMP),y)
+        ifeq ($(CC),pgcc)
+                CFLAGS+=-mp
+        else
+                CFLAGS+=-fopenmp
+        endif
+endif
+
+ifneq ($(SANITIZER),)
+        CFLAGS+=-fsanitize=$(SANITIZER)
+endif
+
+ifneq ($(CC),pgcc)
+        ifeq ($(EXTRA_WARNINGS),y)
+                CFLAGS+=-Wall -g -Wextra -Werror
+        endif
+
+        ifeq ($(ASAN),y)
+                CFLAGS+=-fsanitize=address
+        endif
+
+        ifeq ($(UBSAN),y)
+                CFLAGS+=-fsanitize=undefined
+        endif
+endif
+
+lab1.spec$(EXTENSION): ./lib/unit/munit.h ./lib/unit/munit.c ./src/readline.h ./src/readline.c ./src/readblocks.h ./src/readblocks.c ./src/nameserver.h ./src/encode.h ./src/encode.c  lab1.spec.c
+	$(CC) $(CFLAGS) -o $@ -g ./src/readline.c ./src/readblocks.c ./src/encode.c ./lib/unit/munit.c lab1.spec.c
+
+test:
+	$(TEST_ENV) ./lab1.spec$(EXTENSION)
 
 clean:
-	rm -f $(OBJS)
-	rm -f encode.o
-	rm -f encode
-	# rm -f nameserver.o
-	# rm -f nameserver
-	# rm -f readblocks.o
-	# rm -f readblocks
-	# rm -f readline.o
-	# rm -f readline
+	rm -f lab1.spec$(EXTENSION)
 
-.c.o:
-	gcc $(COPTS) $? -o $@
-
-encode: encode.o
-	gcc encode.o -o encode
-
-# nameserver: nameserver.o
-# 	gcc nameserver.o -o nameserver
-#
-# readblocks: readblocks.o
-# 	gcc readblocks.o -o readblocks
-#
-# readline: readline.o
-# 	gcc readline.o -o readline
+all: lab1.spec$(EXTENSION)

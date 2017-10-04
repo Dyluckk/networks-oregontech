@@ -1,6 +1,6 @@
 # Using µnit is very simple; just include the header and add the C
 # file to your sources.  That said, here is a simple Makefile to build
-# the lab1.spec.
+# the example.
 
 CSTD:=99
 OPENMP:=n
@@ -31,7 +31,7 @@ endif
 
 ifneq ($(CC),pgcc)
         ifeq ($(EXTRA_WARNINGS),y)
-                CFLAGS+=-Wall -g -Wextra -Werror
+                CFLAGS+=-Wall -Wextra -Werror
         endif
 
         ifeq ($(ASAN),y)
@@ -43,13 +43,13 @@ ifneq ($(CC),pgcc)
         endif
 endif
 
-lab1.spec$(EXTENSION): ../unit/munit.h ../unit/munit.c ../lab1/readline.h ../lab1/readline.c ../lab1/readblocks.h ../lab1/readblocks.c ../lab1/nameserver.h ../lab1/encode.h ../lab1/encode.c  lab1.spec.c
-	$(CC) $(CFLAGS) -o $@ -g ../lab1/readline.c ../lab1/readblocks.c ../lab1/encode.c ../unit/munit.c lab1.spec.c
+example$(EXTENSION): munit.h munit.c example.c
+	$(CC) $(CFLAGS) -o $@ munit.c example.c
 
 test:
-	$(TEST_ENV) ./lab1.spec$(EXTENSION)
+	$(TEST_ENV) ./example$(EXTENSION)
 
 clean:
-	rm -f lab1.spec$(EXTENSION)
+	rm -f example$(EXTENSION)
 
-all: lab1.spec$(EXTENSION)
+all: example$(EXTENSION)
