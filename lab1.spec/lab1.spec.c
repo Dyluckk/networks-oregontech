@@ -62,17 +62,18 @@ static const MunitSuite test_suite = {
 int main(int argc, char* argv[]) {
 
   int fd;
-  char buff[256];
+  char buff[4];
 
+  //TODO move to unit
   /*opening the file in read-only mode*/
-  if ((fd = open_blocks(argv[1])) < 0) {
-      perror("Problem in opening the file");
-      exit(1);
-  }
-
-  while(readline(buff, 256, fd) != 0){
-    printf("\nreadline returned ---> %s\n", buff);
-  }
+  // if ((fd = open_blocks(argv[1])) < 0) {
+  //     perror("Problem in opening the file");
+  //     exit(1);
+  // }
+  //
+  // while(readline(buff, sizeof(buff), fd) != 0){
+  //   printf("\nreadline returned ---> %s\n", buff);
+  // }
 
   /* Use µnit here. */
   return munit_suite_main(&test_suite, (void*) "µnit", argc, argv);

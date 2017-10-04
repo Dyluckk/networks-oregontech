@@ -1,31 +1,36 @@
 //******************************************************
 // Declare functions for opening and reading files a buffer at a time
 //
-// Author: Philip Howard
-// Email:  phil.howard@oit.edu
+// Author: Zachary Wentworth
+// Email:  zachary.wentworth@oit.edu
 //
 //******************************************************
 #include "encode.h"
-
-/* TODO how to determine a failure? */
 
 // *************************************
 // See the header file for documentation
 void *encode(request_t* request, void *buff) {
   /* flip port h2ns */
   request->port = htons(request->port);
-  int found_null = 0;
 
-  /* zero out the rest of service_name */
-  for (int i = 0; i < MAX_SERVICE_NAME_LEN; i++) {
-    /* find zero */
-    if(request->service_name[i] == 0) found_null = 1;
-    /* after zero is found zero out all */
-    if(found_null == 1 && request->service_name[i] != 0) request->service_name[i] = 0;
+  /* NULL fill the service_name of request */
+  char * null_position;
+  int ptr_offset = 0;
+  null_position = (char*) memchr (request->service_name, '\0', sizeof(request->service_name));
+  if (null_position != NULL) {
+      ptr_offset = null_position-request->service_name;
+      memset(null_position, '\0', sizeof(request->service_name)-ptr_offset);
   }
 
-  /* assign request to buff and return buff */
-  buff = request;
+  /* check status, return NULL to indicate ERROR */
+  if(request->msg_type < DEFINE_PORT || request->msg_type > STOP) return NULL;
+  /* check message type, return NULL to indicate ERROR */
+  if(request->status < SUCCESS || request->status > UNDEFINED_ERROR) return NULL;
+
+  /* assign request to buff */
+  if(buff != request) {
+    buff = request;
+  }
   return buff;
 }
 
@@ -33,8 +38,19 @@ void *encode(request_t* request, void *buff) {
 // See the header file for documentation
 int is_invalid(request_t* request) {
   int validCheck = 0;
-  if(request->msg_type < 1 || request->msg_type > 6) validCheck = 1;
-  if(request->status < 0 || request->status > 5) validCheck = 1;
+  if(request->msg_type < DEFINE_PORT || request->msg_type > STOP) return 1;
+  if(request->status < SUCCESS || request->status > UNDEFINED_ERROR) return 1;
+
+  /* checks if the service_name is null filled */
+  char * null_position;
+  int ptr_offset = 0;
+  null_position = (char*) memchr (request->service_name, '\0', sizeof(request->service_name));
+  if (null_position != NULL) {
+      ptr_offset = null_position-request->service_name;
+      for(int i = ptr_offset; i < sizeof(request->service_name); i++) {
+          return 1;
+      }
+  }
 
   return validCheck;
 }
@@ -48,6 +64,8 @@ request_t *decode(void *buff, request_t* decoded) {
   /* flip port */
   decoded->port = ntohs(decoded->port);
   /* assign decoded to buff and return */
-  buff = decoded;
+  if(buff != decoded) {
+    buff = decoded;
+  }
   return decoded;
 }
