@@ -6,10 +6,11 @@
 //
 //******************************************************
 #include "encode.h"
+#include <stdio.h>
 
 // *************************************
 // See the header file for documentation
-void *encode(request_t* request, void *buff) {
+void* encode(request_t* request, void* buff) {
   /* flip port h2ns */
   request->port = htons(request->port);
 
@@ -38,6 +39,7 @@ void *encode(request_t* request, void *buff) {
 // See the header file for documentation
 int is_invalid(request_t* request) {
   int validCheck = 0;
+
   if(request->msg_type < DEFINE_PORT || request->msg_type > STOP) return 1;
   if(request->status < SUCCESS || request->status > UNDEFINED_ERROR) return 1;
 
@@ -48,7 +50,7 @@ int is_invalid(request_t* request) {
   if (null_position != NULL) {
       ptr_offset = null_position-request->service_name;
       for(int i = ptr_offset; i < sizeof(request->service_name); i++) {
-          return 1;
+          if(request->service_name[i] != '\0') return 1;
       }
   }
 
@@ -57,7 +59,7 @@ int is_invalid(request_t* request) {
 
 // *************************************
 // See the header file for documentation
-request_t *decode(void *buff, request_t* decoded) {
+request_t* decode(void* buff, request_t* decoded) {
   /* check if valid */
   int valid = is_invalid(decoded);
   if(valid > 0) return NULL;
