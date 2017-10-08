@@ -1,6 +1,9 @@
 #include "readline.h"
 #include <string.h>
 
+/* use a array for all the statics checking to see if the fd matches */
+/* thread is not needed */
+
 // *************************************
 // See the header file for documentation
 char* readline(char* buff, ssize_t size, int fd) {
