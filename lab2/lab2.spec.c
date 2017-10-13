@@ -2,7 +2,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
 #include <string.h>
+#include <string>
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -11,7 +13,16 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-static int port = 1234;
+#include "./src/nameserver.h"
+#include "./src/encode.h"
+#include "./src/encode.c"
+
+using std::string;
+using std::cout;
+using std::endl;
+using std::cerr;
+
+static int port = 50000;
 
 /* test used to ensure testing framework is working properly */
 void sanity_test() {
@@ -23,12 +34,17 @@ void clinet_test1()
 {
   const int SERVICE_PORT = port;	/* hard-coded port number TODO pass as commmand line arg via -p */
   const int BUFLEN = 2048;
-  const int MSGS = 5;	/* number of messages to send */
+
 
   struct sockaddr_in myaddr, remaddr;
-	int fd, i, slen=sizeof(remaddr);
-	char *server = "127.0.0.1";	/* change this to use a different server */
+	int fd, slen=sizeof(remaddr);
+	string server = "127.0.0.1";	/* change this to use a different server */
 	char buf[BUFLEN];
+
+  request_t* my_request = new request_t();
+  my_request->msg_type = DEFINE_PORT;
+  strncpy(my_request->service_name, "woo.com", sizeof(my_request->service_name));
+  my_request->port = 30;
 
 	/* create a socket */
 	if ((fd=socket(AF_INET, SOCK_DGRAM, 0))==-1)
@@ -49,21 +65,24 @@ void clinet_test1()
 	memset((char *) &remaddr, 0, sizeof(remaddr));
 	remaddr.sin_family = AF_INET;
 	remaddr.sin_port = htons(SERVICE_PORT);
-	if (inet_aton(server, &remaddr.sin_addr)==0) {
+	if (inet_aton(server.c_str(), &remaddr.sin_addr)==0) {
 		fprintf(stderr, "inet_aton() failed\n");
 		exit(1);
 	}
 
 	/* send messages */
-	for (i=0; i < MSGS; i++) {
-		// printf("Sending packet %d to %s port %d\n", i, server, SERVICE_PORT);
-		//  sprintf(buf, "This is packet %d", i);
 
-    /* create & encode request_t to be sent to the ns */
+	printf("Sending packet to port %d\n", SERVICE_PORT);
+	sprintf(buf, "This is a packet");
 
-		if (sendto(fd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, slen)==-1)
-			perror("sendto");
-	}
+  /* create & encode request_t to be sent to the ns */
+  void* buffer;
+  buffer = encode(my_request, buffer);
+
+
+	if (sendto(fd, buffer, sizeof(buffer), 0, (struct sockaddr *)&remaddr, slen)==-1)
+    perror("sendto");
+
 
 	close(fd);
 
@@ -71,29 +90,28 @@ void clinet_test1()
 
 int main(int argc, char** argv) {
 
-  // int c;
-  // while ((c = getopt (argc, argv, "p")) != -1)
 
-  /* TODO check for the following command line args
-   * -h
-   * -p <service port>
-   * -n <minimum number of supported ports>
-   * -t <keep alive time in seconds>
-   */
-
-   // TODO give defaults -p 50000 –n 100–t 300
-
-  if(argv[1]) {
-    char *p;
-    long conv = strtol(argv[1], &p, 10);
-
-    /* Check to make sure arguemnt passed represents an int */
-    if (*p != '\0' || conv > INT_MAX) exit(0);
-    port = conv;
-  }
 
   UNITY_BEGIN();
     RUN_TEST(sanity_test);
     RUN_TEST(clinet_test1);
   return UNITY_END();
+  // return 0;
 }
+
+/*TODO ask phil if we need to validate the args */
+//  bool error = false;
+//  /* check if valid args */
+//  if(!isdigit(service_port)) error = true;
+//  cout << error << endl;
+//  if(!isdigit(min_supported_ports)) error = true;
+//  cout << error << endl;
+//  if(!isdigit(keep_alive_time)) error = true;
+//  cout << error << endl;
+ //
+//  cout << "service_port: " << service_port << endl;
+//  cout << "min_supported_ports: " << min_supported_ports << endl;
+//  cout << "keep_alive_time: " << keep_alive_time << endl;
+ //
+//  /* if invalid arg is passed, print error and terminate */
+//  if(error) cerr << "invalid arg passed, terminating" << endl;

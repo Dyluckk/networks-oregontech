@@ -6,11 +6,12 @@
 # Email:  phil.howard@oit.edu
 # Date:   Sept 22, 2016
 #
-COPTS = -g -O0 -Wall 
+COPTS = -g -O0 -Wall
+CFLAGS := $(CFLAGS) -std=c++11
 
-OBJS = addr2str.o
+# OBJS = addr2str.o
 
-all: oit_ns nsclient 
+all: oit_ns
 
 clean:
 	rm -f nsclient
@@ -18,11 +19,10 @@ clean:
 	rm -f *.o
 
 .c.o:
-	gcc $(COPTS) -c $? -o $@
+	g++ $(COPTS) -c $? -o $@
 
-oit_ns: oit_ns.c nameserver.h $(OBJS)
-	gcc $(COPTS) oit_ns.c -o oit_ns $(OBJS)
+oit_ns: oit_ns.cpp nameserver.h ns_handler.h ns_handler.cpp
+	g++ $(COPTS) $(CFLAGS) oit_ns.cpp -o oit_ns ../src/ns_handler.cpp
 
-nsclient: nsclient.c nameserver.h $(OBJS)
-	gcc $(COPTS) nsclient.c -o nsclient $(OBJS)
-
+# nsclient: nsclient.c nameserver.h $(OBJS)
+# gcc $(COPTS) nsclient.c -o nsclient $(OBJS)

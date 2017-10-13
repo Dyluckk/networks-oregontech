@@ -13,8 +13,7 @@
 
 #define MAX_SERVICE_NAME_LEN 49
 
-typedef struct
-{
+typedef struct {
     int8_t msg_type;                                // see #defines below
     char service_name[MAX_SERVICE_NAME_LEN + 1];    // null terminated name
     uint16_t port;                                  // net byte order port num
