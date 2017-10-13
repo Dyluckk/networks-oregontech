@@ -11,27 +11,33 @@
 // *************************************
 // See the header file for documentation
 void* encode(request_t* request, void* buff) {
+  /* check if request and buff are pointing to the same request_t */
+  if(buff != request) {
+    /* ensure buff is of type request_t */
+    buff = (request_t*)buff;
+    /* copy request into buff */
+    buff->port = request->port;
+    buff->msg_type = request->msg_type;
+    buff->status = request->status;
+    buff->service_name = request->service_name;
+  }
   /* flip port h2ns */
-  request->port = htons(request->port);
+  buff->port = htons(request->port);
 
   /* NULL fill the service_name of request */
   char * null_position;
   int ptr_offset = 0;
-  null_position = (char*) memchr (request->service_name, '\0', sizeof(request->service_name));
+  null_position = (char*) memchr (buff->service_name, '\0', sizeof(buff->service_name));
   if (null_position != NULL) {
-      ptr_offset = null_position-request->service_name;
-      memset(null_position, '\0', sizeof(request->service_name)-ptr_offset);
+      ptr_offset = null_position-buff->service_name;
+      memset(null_position, '\0', sizeof(buff->service_name)-ptr_offset);
   }
 
   /* check status, return NULL to indicate ERROR */
-  if(request->msg_type < DEFINE_PORT || request->msg_type > STOP) return NULL;
+  if(buff->msg_type < DEFINE_PORT || buff->msg_type > STOP) return NULL;
   /* check message type, return NULL to indicate ERROR */
-  if(request->status < SUCCESS || request->status > UNDEFINED_ERROR) return NULL;
+  if(buff->status < SUCCESS || buff->status > UNDEFINED_ERROR) return NULL;
 
-  /* assign request to buff */
-  if(buff != request) {
-    buff = request;
-  }
   return buff;
 }
 
@@ -60,14 +66,23 @@ int is_invalid(request_t* request) {
 // *************************************
 // See the header file for documentation
 request_t* decode(void* buff, request_t* decoded) {
-  /* check if valid */
-  int valid = is_invalid(decoded);
-  if(valid > 0) return NULL;
-  /* flip port */
-  decoded->port = ntohs(decoded->port);
-  /* assign decoded to buff and return */
-  if(buff != decoded) {
-    buff = decoded;
+  /* check if request and buff are pointing to the same request_t */
+  if(buff != request) {
+    /* ensure buff is of type request_t */
+    buff = (request_t*)buff;
+    /* copy request into buff */
+    buff->port = request->port;
+    buff->msg_type = request->msg_type;
+    buff->status = request->status;
+    buff->service_name = request->service_name;
   }
-  return decoded;
+
+  /* flip port */
+  buff->port = ntohs(buff->port);
+
+  /* check if valid */
+  int valid = is_invalid(buff);
+  if(valid > 0) return NULL;
+
+  return buff;
 }
