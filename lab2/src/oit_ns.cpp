@@ -146,6 +146,14 @@ int main(int argc, char **argv) {
                     client_buff = generate_response(client_buff, lookup_table, keep_alive_time);
                     /* encode response */
                     void* encoded_response = encode(client_buff, client_buff);
+
+                    printf("%s\n","=====================================================================" );
+
+                    printf("received packet msg_type: \"%d\"\n", ((request_t*)encoded_response)->msg_type);
+                    printf("received packet status: \"%d\"\n", ((request_t*)encoded_response)->status);
+                    printf("received packet service_name: \"%s\"\n", ((request_t*)encoded_response)->service_name);
+                    printf("received packet port: \"%d\"\n", ((request_t*)encoded_response)->port);
+
                     /* respond to client */
                     if (sendto(fd, encoded_response, sizeof(request_t), 0, (struct sockaddr *)&remaddr, slen)==-1)
                         perror("sendto");

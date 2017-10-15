@@ -18,7 +18,6 @@ void* encode(request_t* request, void* buff) {
         ((request_t*)buff)->port = request->port;
         ((request_t*)buff)->msg_type = request->msg_type;
         ((request_t*)buff)->status = request->status;
-        // strncpy(((request_t*)buff)->service_name, request->service_name, MAX_SERVICE_NAME_LEN);
     }
     /* flip port h2ns */
     ((request_t*)buff)->port = htons(((request_t*)buff)->port);
@@ -27,7 +26,6 @@ void* encode(request_t* request, void* buff) {
     int null_pos = 0;
     for(unsigned int i = 0; i < sizeof(request->service_name); i++) {
         if(request->service_name[i] == '\0') {
-            printf("%d\n", i);
             null_pos = i;
             i = sizeof(request->service_name);
         }
@@ -40,7 +38,7 @@ void* encode(request_t* request, void* buff) {
         memset(null_filled_service_name+null_pos, '\0', sizeof(null_filled_service_name)-null_pos);
     }
 
-    memcpy(((request_t*)buff)->service_name, null_filled_service_name, sizeof(null_filled_service_name)+1);
+    memcpy(((request_t*)buff)->service_name, null_filled_service_name, sizeof(null_filled_service_name));
 
     /* check status, return NULL to indicate ERROR */
     if(((request_t*)buff)->msg_type < DEFINE_PORT || ((request_t*)buff)->msg_type > STOP) return NULL;
