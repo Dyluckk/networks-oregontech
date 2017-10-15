@@ -72,17 +72,20 @@ void client_test1() {
     if (sendto(fd, buffer, sizeof(request_t), 0, (struct sockaddr *)&remaddr, slen)==-1)
         perror("sendto");
 
+    free(client_buff);
+
     request_t * recieved_buff = (request_t*)malloc(sizeof(request_t));
     request_t * server_reponse = (request_t*)malloc(sizeof(request_t));
     /* now receive an acknowledgement from the server */
     recvlen = recvfrom(fd, server_reponse, sizeof(request_t), 0, (struct sockaddr *)&remaddr, (socklen_t*)&slen);
         if (recvlen >= 0) {
-             response_buff = decode(response_buff, client_buff);
-             printf("received packet msg_type: \"%d\"\n", server_reponse->msg_type);
-             printf("received packet status: \"%d\"\n", server_reponse->status);
-             printf("received packet service_name: \"%s\"\n", server_reponse->service_name);
-             printf("received packet port: \"%d\"\n", server_reponse->port);
+             recieved_buff = decode(recieved_buff, server_reponse);
+             printf("received packet msg_type: \"%d\"\n", recieved_buff->msg_type);
+             printf("received packet status: \"%d\"\n", recieved_buff->status);
+             printf("received packet service_name: \"%s\"\n", recieved_buff->service_name);
+             printf("received packet port: \"%d\"\n", recieved_buff->port);
              free(server_reponse);
+             free(recieved_buff);
         }
 
     close(fd);
