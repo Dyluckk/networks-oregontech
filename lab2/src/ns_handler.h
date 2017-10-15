@@ -29,3 +29,5 @@ request_t* define_service(request_t* decoded_request, ns_lookup_table& lookup_ta
 request_t* lookup_service_port(request_t* decoded_request, ns_lookup_table& lookup_table);
 /* removes service from the table */
 request_t* remove_service(request_t* decoded_request, ns_lookup_table& lookup_table);
+/* removes timedout services */
+void clear_timedout_services( ns_lookup_table& lookup_table, int keep_alive_time);

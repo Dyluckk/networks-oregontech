@@ -263,6 +263,80 @@ void remove_service_test_invalid() {
   TEST_ASSERT(request->status == SERVICE_NOT_FOUND);
 }
 
+/* @describe: should pass when the entries are removed that had timedout */
+void clear_timedout_services_test() {
+    ns_lookup_table lookup_table;
+    int keep_alive_time = -1000;
+    const int DESIRED_PORT = 55555;
+    request_t* request = new request_t();
+    /* initialize request */
+    request->msg_type = KEEP_ALIVE;
+    strncpy(request->service_name, "www.website0.com", sizeof(request->service_name));
+    request->port = DESIRED_PORT;
+
+    /* send requests to define handler */
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website1.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website2.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website3.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website4.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website5.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website6.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    clear_timedout_services(lookup_table, keep_alive_time);
+
+    TEST_ASSERT(lookup_table.size() == 0);
+}
+
+/* @describe: should pass when the entries are removed that had timedout */
+void clear_timedout_services_test_no_removals() {
+    ns_lookup_table lookup_table;
+    int keep_alive_time = 1000;
+    const int DESIRED_PORT = 55555;
+    request_t* request = new request_t();
+    /* initialize request */
+    request->msg_type = KEEP_ALIVE;
+    strncpy(request->service_name, "www.website0.com", sizeof(request->service_name));
+    request->port = DESIRED_PORT;
+
+    /* send requests to define handler */
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website1.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website2.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website3.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website4.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website5.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    strncpy(request->service_name, "www.website6.com", sizeof(request->service_name));
+    request = define_service(request, lookup_table, keep_alive_time);
+
+    clear_timedout_services(lookup_table, keep_alive_time);
+
+    TEST_ASSERT(lookup_table.size() == 7);
+}
+
 int main(int argc, char** argv) {
   UNITY_BEGIN();
     RUN_TEST(sanity_test);
@@ -276,5 +350,7 @@ int main(int argc, char** argv) {
     RUN_TEST(lookup_service_port_invalid_port_arg_test);
     RUN_TEST(remove_service_test_valid);
     RUN_TEST(remove_service_test_invalid);
+    RUN_TEST(clear_timedout_services_test);
+    RUN_TEST(clear_timedout_services_test_no_removals);
   return UNITY_END();
 }

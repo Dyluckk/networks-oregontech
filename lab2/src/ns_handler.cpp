@@ -112,3 +112,19 @@ request_t* remove_service(request_t* decoded_request, ns_lookup_table& lookup_ta
   }
   return decoded_request;
 }
+
+/* function used to wipe timedout entries */
+void clear_timedout_services( ns_lookup_table& lookup_table, int keep_alive_time) {
+    unordered_map<std::string, service_info_t>::iterator it = lookup_table.begin();
+    while(it != lookup_table.end())
+    {
+        time_t current_epoch = time(0);
+        if((it->second).timeout < current_epoch) {
+            string service_name_to_remove = it->first;
+            it++;
+            lookup_table.erase(service_name_to_remove);
+        } else {
+            it++;
+        }
+    }
+}

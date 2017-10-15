@@ -21,8 +21,8 @@ clean:
 .c.o:
 	g++ $(COPTS) -c $? -o $@
 
-oit_ns: oit_ns.cpp nameserver.h ns_handler.h ns_handler.cpp
-	g++ $(COPTS) $(CFLAGS) oit_ns.cpp -o oit_ns ../src/ns_handler.cpp
+oit_ns: oit_ns.cpp nameserver.h ns_handler.h ns_handler.cpp encode.h encode.c
+	g++ $(COPTS) $(CFLAGS) oit_ns.cpp -o oit_ns ../src/ns_handler.cpp encode.c
 
 # nsclient: nsclient.c nameserver.h $(OBJS)
 # gcc $(COPTS) nsclient.c -o nsclient $(OBJS)

@@ -41,7 +41,7 @@ void shutdown() {
 }
 
 /* function used to forward actions based on request_t->msg_type */
-request_t* generate_response(request_t* decoded_request, ns_lookup_table& lookup_table,int keep_alive_time) {
+request_t* generate_response(request_t* decoded_request, ns_lookup_table& lookup_table, int keep_alive_time) {
   //TODO convert to switch case
   if (decoded_request->msg_type == DEFINE_PORT) {
     //TODO check if full
@@ -61,40 +61,40 @@ request_t* generate_response(request_t* decoded_request, ns_lookup_table& lookup
 }
 
 int main(int argc, char **argv) {
+    int option = 0;
+    /* give defaults values dor options */
+    /* -p 50000 –n 100–t 300            */
+    int service_port = 50000;
+    int min_supported_ports = 100; // NOTE: n is only needed to prevent denial of service attacks
+    int keep_alive_time = 300;
+    ns_lookup_table lookup_table;
 
-  int option = 0;
-  /* give defaults values dor options */
-  /* -p 50000 –n 100–t 300            */
-  int service_port = 50000;
-  int min_supported_ports = 100; // NOTE: n is only needed to prevent denial of service attacks
-  int keep_alive_time = 300;
-
-  /* check for the following command line args
-   * -h (print help, "tell user what args do what")
-   * -p <service port>
-   * -n <minimum number of supported ports>
-   * -t <keep alive time in seconds>
-   */
-   while ((option = getopt(argc, argv,"hp:n:t:")) != -1) {
-     switch (option) {
-         case 'h' : print_help_message(); return 0;
-             break;
-         case 'p' : service_port = atoi(optarg);
-             break;
-         case 'n' : min_supported_ports = atoi(optarg);
-             break;
-         case 't' : keep_alive_time = atoi(optarg);
-             break;
+    /* check for the following command line args
+    * -h (print help, "tell user what args do what")
+    * -p <service port>
+    * -n <minimum number of supported ports>
+    * -t <keep alive time in seconds>
+    */
+    while ((option = getopt(argc, argv,"hp:n:t:")) != -1) {
+        switch (option) {
+             case 'h' : print_help_message(); return 0;
+                 break;
+             case 'p' : service_port = atoi(optarg);
+                 break;
+             case 'n' : min_supported_ports = atoi(optarg);
+                 break;
+             case 't' : keep_alive_time = atoi(optarg);
+                 break;
         }
-  }
+    }
 
 	int fd;	/* our socket */
-  const int NS_PORT = service_port; /* port the nameserver is sitting on */
-  unsigned int address_length; /* length of address (for getsockname) */
-  struct sockaddr_in ns_address; /* our address (a sockaddr container) */
-  struct sockaddr_in remaddr; /* remote address */
-  unsigned char buf[BUFSIZE]; /* receive buffer */
-  int recvlen; /* # of bytes that were read into buffer */
+    const int NS_PORT = service_port; /* port the nameserver is sitting on */
+    unsigned int address_length; /* length of address (for getsockname) */
+    struct sockaddr_in ns_address; /* our address (a sockaddr container) */
+    struct sockaddr_in remaddr; /* remote address */
+    int slen = sizeof(remaddr);
+    int recvlen; /* # of bytes that were read into buffer */
 
 	/* create a udp/ip socket */
 	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -104,14 +104,14 @@ int main(int argc, char **argv) {
 
 	printf("created socket: descriptor = %d\n", fd);
 
-  /* fill out the sockaddr_in structure */
-	memset((void *)&ns_address, 0, sizeof(ns_address));
-  ns_address.sin_family = AF_INET;/* set address family */
-	ns_address.sin_addr.s_addr = htonl(INADDR_ANY); /* set the address for the socket */
-  ns_address.sin_port = htons(NS_PORT); /* set the transport address (port #) */
+    /* fill out the sockaddr_in structure */
+    memset((void *)&ns_address, 0, sizeof(ns_address));
+    ns_address.sin_family = AF_INET;/* set address family */
+    ns_address.sin_addr.s_addr = htonl(INADDR_ANY); /* set the address for the socket */
+    ns_address.sin_port = htons(NS_PORT); /* set the transport address (port #) */
 
-  /* bind to an arbitrary return address */
-	if (bind(fd, (struct sockaddr *)&ns_address, sizeof(ns_address)) < 0) {
+    /* bind to an arbitrary return address */
+    if (bind(fd, (struct sockaddr *)&ns_address, sizeof(ns_address)) < 0) {
 		perror("bind failed");
 		return 0;
 	}
@@ -124,38 +124,36 @@ int main(int argc, char **argv) {
 
 	printf("bind complete. Port number = %d\n", ntohs(ns_address.sin_port));
 
-  /* Run forever */
-  for (;;) {
-    printf("waiting on port %d\n", NS_PORT);
-    recvlen = recvfrom(fd, buf, BUFSIZE, 0, (struct sockaddr *)&remaddr, &address_length);
-    printf("received %d bytes\n", recvlen);
-    /* ensure bytes were recieved */
-    if (recvlen > 0) {
-      // buf[recvlen] = 0;
-      /* handle here */
+    /* Run forever */
+    for (;;) {
+        printf("waiting on port %d\n", NS_PORT);
+        request_t * client_buff = (request_t*)malloc(sizeof(request_t));
+        request_t * response_buff = (request_t*)malloc(sizeof(request_t));
+        recvlen = recvfrom(fd, client_buff, sizeof(request_t), 0, (struct sockaddr *)&remaddr, &address_length);
+        printf("received %d bytes\n", recvlen);
+        /* ensure bytes were recieved */
+            if (recvlen > 0) {
+                /* decode request */
+                response_buff = decode(response_buff, client_buff);
+                printf("received packet msg_type: \"%d\"\n", response_buff->msg_type);
+                printf("received packet status: \"%d\"\n", response_buff->status);
+                printf("received packet service_name: \"%s\"\n", response_buff->service_name);
+                printf("received packet port: \"%d\"\n", response_buff->port);
 
-      /* cast recieved packet to a request_t */
-      request_t* tmp_pckt = (request_t*) buf;
-      printf("received packet: \"%d\"\n", tmp_pckt->msg_type);
-      printf("received packet: \"%d\"\n", tmp_pckt->msg_type);
-      printf("received packet: \"%d\"\n", tmp_pckt->msg_type);
-
-      /* decode request */
-
-
-
-      /* check if request was valid before process (on fail decode returns NULL) */
-
-      /* process */
-
-      /* encode response */
-
-      /* respond to client */
-      // sendto(fd, buf, strlen(buf), 0, (struct sockaddr *)&remaddr, addrlen);
-
+                /* check if request was valid before process (on fail decode returns NULL) */
+                if(response_buff) {
+                    /* process */
+                    client_buff = generate_response(client_buff, lookup_table, keep_alive_time);
+                    /* encode response */
+                    void* encoded_response = encode(client_buff, client_buff);
+                    /* respond to client */
+                    if (sendto(fd, encoded_response, sizeof(request_t), 0, (struct sockaddr *)&remaddr, slen)==-1)
+                        perror("sendto");
+                }
+            }
+        free(response_buff);
+        free(client_buff);
     }
-  }
-
 }
 
 
