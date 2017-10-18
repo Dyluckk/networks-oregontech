@@ -771,9 +771,6 @@ int main(int argc, char **argv) {
     RUN_TEST(remove_invalid_port);
     RUN_TEST(remove_invalid_service_name);
     RUN_TEST(remove_valid);
-
-    // RUN_TEST(invalid_status_request_bad);
-
     /* MUST BE LAST */
     RUN_TEST(stop_name_server);
     return UNITY_END();

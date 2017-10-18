@@ -1,4 +1,5 @@
 // ******************************************************
+
 // A names server for CST 415
 //
 // Author: Zachary Wentworth
@@ -119,7 +120,8 @@ void log_outgoing_response(request_t *response_buff) {
     if (response_buff->status ==
         UNDEFINED_ERROR) status_string = "UNDEFINED_ERROR";
 
-    printf("%s\n", "***************** SENDING RESPONSE *****************");
+    fprintf(stdout, "%s\n",
+    "***************** SENDING RESPONSE *****************");
     fprintf(stdout, "time of request: %s\n",  get_current_time().c_str());
     fprintf(stdout, "msg_type: \"%s\"\n",     msg_type_string.c_str());
     fprintf(stdout, "status: \"%s\"\n",       status_string.c_str());
@@ -134,30 +136,39 @@ void log_bad_request() {
             "====================================================");
     fprintf(stdout, "%s\n",
             "====================================================");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@   BAD REQUEST   @@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@   BAD REQUEST   @@@@@@@@@@@@@@@@@");
     fprintf(stdout, "%s%s%s\n",
             "@@@@@@@@@@@@@@@ ", get_current_time().c_str(),
             " @@@@@@@@@@@@@@@@");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 }
 
 void log_start_up() {
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@   STARTUP...   @@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@   STARTUP...   @@@@@@@@@@@@@@@@@@");
     fprintf(stdout, "%s%s%s\n",
             "@@@@@@@@@@@@@@@ ", get_current_time().c_str(),
             " @@@@@@@@@@@@@@@@");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 }
 
 void log_shutdown() {
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@   SHUTDOWN...   @@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@   SHUTDOWN...   @@@@@@@@@@@@@@@@@");
     fprintf(stdout, "%s%s%s\n",
             "@@@@@@@@@@@@@@@ ", get_current_time().c_str(),
             " @@@@@@@@@@@@@@@@");
-    printf("%s\n", "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    fprintf(stdout, "%s\n",
+    "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 }
 
 void print_help_message() {
@@ -273,11 +284,11 @@ int main(int argc, char **argv) {
     struct sockaddr_in remaddr;       /* remote address */
     int slen = sizeof(remaddr);
     int recvlen;                      /* # of bytes that were read into buffer
-                                         */
+                                       */
 
     /* create a udp/ip socket */
     if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("cannot create socket");
+        fprintf(stderr, "cannot create socket");
         return 0;
     }
 
@@ -291,22 +302,22 @@ int main(int argc, char **argv) {
 
     /* bind to an arbitrary return address */
     if (bind(fd, (struct sockaddr *)&ns_address, sizeof(ns_address)) < 0) {
-        perror("bind failed");
+        fprintf(stderr, "bind failed");
         return 0;
     }
 
     address_length = sizeof(ns_address);
 
     if (getsockname(fd, (struct sockaddr *)&ns_address, &address_length) < 0) {
-        perror("getsockname failed");
+        fprintf(stderr, "getsockname failed");
         return 0;
     }
 
     /* Run forever */
-    printf("waiting on port %d\n", NS_PORT);
+    fprintf(stdout, "waiting on port %d\n", NS_PORT);
 
     freopen(log_file_name.c_str(), "a+", stdout);
-    printf("NS WAS LISTENING ON PORT: %d\n", NS_PORT);
+    fprintf(stdout, "NS WAS LISTENING ON PORT: %d\n", NS_PORT);
     log_start_up();
     fclose(stdout);
 
@@ -357,8 +368,8 @@ int main(int argc, char **argv) {
 
                 /* respond to client */
                 if (sendto(fd, encoded_response, sizeof(request_t), 0,
-                           (struct sockaddr *)&remaddr, slen) == -1) perror(
-                        "sendto");
+                   (struct sockaddr *)&remaddr, slen) == -1)
+                   fprintf(stderr,"sendto");
 
                 /* check if a shutdown request was sent */
                 if (stop_triggered) {
@@ -388,8 +399,8 @@ int main(int argc, char **argv) {
 
                 /* respond to client */
                 if (sendto(fd, encoded_response, sizeof(request_t), 0,
-                           (struct sockaddr *)&remaddr, slen) == -1) perror(
-                        "sendto");
+                   (struct sockaddr *)&remaddr, slen) == -1)
+                   fprintf(stderr, "sendto");
             }
         } else {
             /* pring to log */
@@ -411,7 +422,7 @@ int main(int argc, char **argv) {
             /* respond to client */
             if (sendto(fd, encoded_response, sizeof(request_t), 0,
                        (struct sockaddr *)&remaddr,
-            slen) == -1) perror("sendto");
+                       slen) == -1) fprintf(stderr, "sendto");
         }
         free(response_buff);
         free(client_buff);
