@@ -1,10 +1,11 @@
 #pragma once
-
-// *****************************************************
+// ******************************************************
 // Declaration of functions for marshalling request_t structures
 //
 // Author: Zachary Wentworth
 // Email:  zachary.wentworth@oit.edu
+//
+// ******************************************************
 
 #include "nameserver.h"
 

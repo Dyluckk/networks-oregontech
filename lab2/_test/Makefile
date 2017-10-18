@@ -12,5 +12,5 @@ clean:
 .c.o:
 	g++ $(COPTS) -c $? -o $@
 
-ns_handler.spec: ../lib/unity/unity.h ../lib/unity/unity.c ns_handler.spec.c ../src/ns_handler.h ../src/ns_handler.cpp $(OBJS)
-	g++ $(COPTS) $(CFLAGS) ../lib/unity/unity.c ns_handler.spec.c -o ns_handler.spec ../src/ns_handler.cpp $(OBJS)
+ns_handler.spec: ../lib/unity/unity.h ../lib/unity/unity.c ns_handler.spec.cpp ../ns_handler.h ../ns_handler.cpp $(OBJS)
+	g++ $(COPTS) $(CFLAGS) ../lib/unity/unity.c ns_handler.spec.c -o ns_handler.spec ../ns_handler.cpp $(OBJS)
