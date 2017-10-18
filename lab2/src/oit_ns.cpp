@@ -5,25 +5,127 @@
  *
  *
  *
- * //TODO need to write func for after exceeding min_supported_ports, clean up a timedout service and replace
- * //TODO if even after cleanup still full respond with ALL_PORTS_BUSY
+ *
+//TODO check if port is okay in keep_alive
+//TODO check if port is zero
+//TODO Ensure that status passed in is SUCCESS
+//TODO check if port is the same in remove
+//TODO return PORT 0 on bad requests
  ******************************************************************************/
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <string>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <iostream>
 #include <netdb.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <chrono>
 
 #include "ns_handler.h"
 
+using std::cout;
+using std::endl;
+using std::string;
+
 #define BUFSIZE 2048
+
+string get_current_time() {
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
+    // for more information about date/time format
+    strftime(buf, sizeof(buf), "%Y-%m-%d-%X", &tstruct);
+
+    return buf;
+}
+
+void log_incoming_request(request_t* request_buff) {
+    string msg_type_string;
+    string status_string;
+
+    /* generate string version of response codes for better readability */
+    if(request_buff->msg_type == DEFINE_PORT) msg_type_string = "DEFINE_PORT";
+    if(request_buff->msg_type == LOOKUP_PORT) msg_type_string = "LOOKUP_PORT";
+    if(request_buff->msg_type == KEEP_ALIVE) msg_type_string = "KEEP_ALIVE";
+    if(request_buff->msg_type == CLOSE_PORT) msg_type_string = "CLOSE_PORT";
+    if(request_buff->msg_type == RESPONSE) msg_type_string = "RESPONSE";
+    if(request_buff->msg_type == STOP) msg_type_string = "STOP";
+
+    if(request_buff->status == SUCCESS) status_string = "SUCCESS";
+    if(request_buff->status == SERVICE_IN_USE) status_string = "SERVICE_IN_USE";
+    if(request_buff->status == SERVICE_NOT_FOUND) status_string = "SERVICE_NOT_FOUND";
+    if(request_buff->status == ALL_PORTS_BUSY) status_string = "ALL_PORTS_BUSY";
+    if(request_buff->status == INVALID_ARG) status_string = "INVALID_ARG";
+    if(request_buff->status == UNDEFINED_ERROR) status_string = "UNDEFINED_ERROR";
+
+    fprintf(stdout,"%s\n","====================================================" );
+    fprintf(stdout,"%s\n","====================================================" );
+    fprintf(stdout,"%s\n","====================================================" );
+    fprintf(stdout,"%s\n","***************** RECIEVED REQUEST *****************" );
+    fprintf(stdout, "time of request: %s\n", get_current_time().c_str());
+    fprintf(stdout,"msg_type: \"%s\"\n", msg_type_string.c_str());
+    fprintf(stdout,"status: \"%s\"\n", status_string.c_str());
+    fprintf(stdout,"service_name: \"%s\"\n", request_buff->service_name);
+    fprintf(stdout,"port: \"%d\"\n", request_buff->port);
+}
+
+void log_outgoing_response(request_t* response_buff) {
+    string msg_type_string;
+    string status_string;
+
+    /* generate string version of response codes for better readability */
+    if(response_buff->msg_type == DEFINE_PORT) msg_type_string = "DEFINE_PORT";
+    if(response_buff->msg_type == LOOKUP_PORT) msg_type_string = "LOOKUP_PORT";
+    if(response_buff->msg_type == KEEP_ALIVE) msg_type_string = "KEEP_ALIVE";
+    if(response_buff->msg_type == CLOSE_PORT) msg_type_string = "CLOSE_PORT";
+    if(response_buff->msg_type == RESPONSE) msg_type_string = "RESPONSE";
+    if(response_buff->msg_type == STOP) msg_type_string = "STOP";
+
+    if(response_buff->status == SUCCESS) status_string = "SUCCESS";
+    if(response_buff->status == SERVICE_IN_USE) status_string = "SERVICE_IN_USE";
+    if(response_buff->status == SERVICE_NOT_FOUND) status_string = "SERVICE_NOT_FOUND";
+    if(response_buff->status == ALL_PORTS_BUSY) status_string = "ALL_PORTS_BUSY";
+    if(response_buff->status == INVALID_ARG) status_string = "INVALID_ARG";
+    if(response_buff->status == UNDEFINED_ERROR) status_string = "UNDEFINED_ERROR";
+
+    printf("%s\n","***************** SENDING RESPONSE *****************" );
+    fprintf(stdout, "time of request: %s\n", get_current_time().c_str());
+    fprintf(stdout,"msg_type: \"%s\"\n", msg_type_string.c_str());
+    fprintf(stdout,"status: \"%s\"\n", status_string.c_str());
+    fprintf(stdout,"service_name: \"%s\"\n", response_buff->service_name);
+    fprintf(stdout,"port: \"%d\"\n", response_buff->port);
+}
+
+void log_bad_request() {
+    fprintf(stdout,"%s\n","====================================================" );
+    fprintf(stdout,"%s\n","====================================================" );
+    fprintf(stdout,"%s\n","====================================================" );
+    printf("%s\n","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" );
+    printf("%s\n","@@@@@@@@@@@@@@@@@@   BAD REQUEST   @@@@@@@@@@@@@@@@@" );
+    fprintf(stdout, "%s%s%s\n", "@@@@@@@@@@@@@@@ ", get_current_time().c_str() ," @@@@@@@@@@@@@@@@");
+    printf("%s\n","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" );
+}
+
+void log_start_up() {
+  printf("%s\n","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" );
+  printf("%s\n","@@@@@@@@@@@@@@@@@@   STARTUP...   @@@@@@@@@@@@@@@@@@" );
+  fprintf(stdout, "%s%s%s\n", "@@@@@@@@@@@@@@@ ", get_current_time().c_str() ," @@@@@@@@@@@@@@@@");
+  printf("%s\n","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" );
+}
+
+void log_shutdown() {
+  printf("%s\n","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" );
+  printf("%s\n","@@@@@@@@@@@@@@@@@@   SHUTDOWN...   @@@@@@@@@@@@@@@@@" );
+  fprintf(stdout, "%s%s%s\n", "@@@@@@@@@@@@@@@ ", get_current_time().c_str() ," @@@@@@@@@@@@@@@@");
+  printf("%s\n","@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@" );
+}
 
 void print_help_message() {
   cout << "Available arguements for nameserver tester:" << endl;
@@ -35,37 +137,65 @@ void print_help_message() {
           "NOTE: ALL VALUES MUST BE INTEGERS" <<endl;
 }
 
-/* shut down serice, ensure no memory leaks */
-void shutdown() {
-  exit(0);
+// Get current date/time, format is YYYY-MM-DD.HH:mm:ss
+string get_log_file_name() {
+    time_t     now = time(0);
+    struct tm  tstruct;
+    char       buf[80];
+    tstruct = *localtime(&now);
+    // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
+    // for more information about date/time format
+    strftime(buf, sizeof(buf), "./_logs/%Y-%m-%d-%X.log", &tstruct);
+
+    return buf;
 }
 
 /* function used to forward actions based on request_t->msg_type */
-request_t* generate_response(request_t* decoded_request, ns_lookup_table& lookup_table, int keep_alive_time) {
-  //TODO convert to switch case
+request_t* generate_response(request_t* decoded_request, ns_lookup_table& lookup_table, int keep_alive_time, unsigned int max_supported_ports) {
   if (decoded_request->msg_type == DEFINE_PORT) {
-    //TODO check if full
-    decoded_request = define_service(decoded_request, lookup_table, keep_alive_time);
+    /* check if full */
+    if(lookup_table.size() == max_supported_ports) {
+        clear_timedout_services(lookup_table, keep_alive_time);
+    }
+    /* check if space avail after clear was made */
+    if(lookup_table.size() < max_supported_ports) {
+        decoded_request = define_service(decoded_request, lookup_table, keep_alive_time);
+    } else {
+        decoded_request = create_ports_full_response(decoded_request);
+    }
   } else if (decoded_request->msg_type == LOOKUP_PORT) {
     decoded_request = lookup_service_port(decoded_request, lookup_table);
   } else if (decoded_request->msg_type == KEEP_ALIVE) {
-    //TODO check if full
-    decoded_request = update_service(decoded_request, lookup_table, keep_alive_time);
+      /* check if full */
+      if(lookup_table.size() == max_supported_ports) {
+          clear_timedout_services(lookup_table, keep_alive_time);
+      }
+      /* check if space avail after clear was made */
+      if(lookup_table.size() < max_supported_ports) {
+          decoded_request = keep_alive(decoded_request, lookup_table, keep_alive_time);
+      } else {
+          decoded_request = create_ports_full_response(decoded_request);
+      }
   } else if (decoded_request->msg_type == CLOSE_PORT) {
     decoded_request = remove_service(decoded_request, lookup_table);
   } else if (decoded_request->msg_type == STOP) {
-    shutdown();
+    decoded_request = create_shutdown_request_response(decoded_request);
   }
 
   return decoded_request;
 }
 
 int main(int argc, char **argv) {
+    /* get name of session log file */
+    string log_file_name = get_log_file_name();
+    // string log_file_name = "/dev/tty";
     int option = 0;
-    /* give defaults values dor options */
-    /* -p 50000 –n 100–t 300            */
+    /*
+     * give defaults values for options
+     * -p 50000 –n 100–t 300
+     */
     int service_port = 50000;
-    int min_supported_ports = 100; // NOTE: n is only needed to prevent denial of service attacks
+    unsigned int max_supported_ports = 100;
     int keep_alive_time = 300;
     ns_lookup_table lookup_table;
 
@@ -81,7 +211,7 @@ int main(int argc, char **argv) {
                  break;
              case 'p' : service_port = atoi(optarg);
                  break;
-             case 'n' : min_supported_ports = atoi(optarg);
+             case 'n' : max_supported_ports = atoi(optarg);
                  break;
              case 't' : keep_alive_time = atoi(optarg);
                  break;
@@ -102,8 +232,6 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	printf("created socket: descriptor = %d\n", fd);
-
     /* fill out the sockaddr_in structure */
     memset((void *)&ns_address, 0, sizeof(ns_address));
     ns_address.sin_family = AF_INET;/* set address family */
@@ -122,64 +250,109 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	printf("bind complete. Port number = %d\n", ntohs(ns_address.sin_port));
-
     /* Run forever */
-    for (;;) {
-        printf("waiting on port %d\n", NS_PORT);
+    printf("waiting on port %d\n", NS_PORT);
+
+    freopen (log_file_name.c_str(),"a+",stdout);
+    printf("NS WAS LISTENING ON PORT: %d\n", NS_PORT);
+    log_start_up();
+    fclose (stdout);
+
+    /* used for when a STOP msg_type is sent to the server */
+    bool turn_off_server = false;
+    while(!turn_off_server) {
         request_t * client_buff = (request_t*)malloc(sizeof(request_t));
         request_t * response_buff = (request_t*)malloc(sizeof(request_t));
         recvlen = recvfrom(fd, client_buff, sizeof(request_t), 0, (struct sockaddr *)&remaddr, &address_length);
-        printf("received %d bytes\n", recvlen);
+
         /* ensure bytes were recieved */
             if (recvlen > 0) {
+
                 /* decode request */
                 response_buff = decode(response_buff, client_buff);
-                printf("received packet msg_type: \"%d\"\n", response_buff->msg_type);
-                printf("received packet status: \"%d\"\n", response_buff->status);
-                printf("received packet service_name: \"%s\"\n", response_buff->service_name);
-                printf("received packet port: \"%d\"\n", response_buff->port);
 
                 /* check if request was valid before process (on fail decode returns NULL) */
                 if(response_buff) {
+
+                    bool stop_triggered = false;
+                    if(response_buff->msg_type == STOP) {
+                        stop_triggered = true;
+                    }
+
+                    /* print to log */
+                    freopen (log_file_name.c_str(),"a+",stdout);
+                    log_incoming_request(response_buff);
+                    fclose (stdout);
+
                     /* process */
-                    client_buff = generate_response(client_buff, lookup_table, keep_alive_time);
+                    freopen (log_file_name.c_str(),"a+",stdout);
+                    response_buff = generate_response(response_buff, lookup_table, keep_alive_time, max_supported_ports);
+                    fclose (stdout);
+                    
+                    /* encode response */
+                    void* encoded_response = encode(response_buff, response_buff);
+
+                    /* print to log */
+                    freopen (log_file_name.c_str(),"a+",stdout);
+                    log_outgoing_response(((request_t*)encoded_response));
+                    fclose (stdout);
+
+                    /* respond to client */
+                    if (sendto(fd, encoded_response, sizeof(request_t), 0, (struct sockaddr *)&remaddr, slen)==-1)
+                        perror("sendto");
+
+                    /* check if a shutdown request was sent */
+                    if(stop_triggered) {
+                        turn_off_server = true;
+                        /* print shutdown to the log_file */
+                        freopen (log_file_name.c_str(),"a+",stdout);
+                        log_shutdown();
+                        fclose (stdout);
+                    }
+
+
+                } else {
+                    /* pring to log */
+                    freopen (log_file_name.c_str(),"a+",stdout);
+                    log_bad_request();
+                    fclose (stdout);
+
+                    /* create bad request response */
+                    client_buff = create_bad_request_response(client_buff);
                     /* encode response */
                     void* encoded_response = encode(client_buff, client_buff);
 
-                    printf("%s\n","=====================================================================" );
-
-                    printf("received packet msg_type: \"%d\"\n", ((request_t*)encoded_response)->msg_type);
-                    printf("received packet status: \"%d\"\n", ((request_t*)encoded_response)->status);
-                    printf("received packet service_name: \"%s\"\n", ((request_t*)encoded_response)->service_name);
-                    printf("received packet port: \"%d\"\n", ((request_t*)encoded_response)->port);
+                    /* print to log */
+                    freopen (log_file_name.c_str(),"a+",stdout);
+                    log_outgoing_response(((request_t*)encoded_response));
+                    fclose (stdout);
 
                     /* respond to client */
                     if (sendto(fd, encoded_response, sizeof(request_t), 0, (struct sockaddr *)&remaddr, slen)==-1)
                         perror("sendto");
                 }
+            } else {
+                /* pring to log */
+                freopen (log_file_name.c_str(),"a+",stdout);
+                log_bad_request();
+                fclose (stdout);
+
+                /* create bade  request response */
+                client_buff = create_bad_request_response(client_buff);
+                /* encode response */
+                void* encoded_response = encode(client_buff, client_buff);
+
+                /* print to log */
+                freopen (log_file_name.c_str(),"a+",stdout);
+                log_outgoing_response(((request_t*)encoded_response));
+                fclose (stdout);
+
+                /* respond to client */
+                if (sendto(fd, encoded_response, sizeof(request_t), 0, (struct sockaddr *)&remaddr, slen)==-1)
+                    perror("sendto");
             }
         free(response_buff);
         free(client_buff);
     }
+    return 0;
 }
-
-
-//******************************* testing ***********************************//
-//******************************* testing ***********************************//
-//******************************* testing ***********************************//
-// int main(int argc, char **argv) {
-//
-//   ns_lookup_table* lookup_table = new ns_lookup_table();
-//   int keep_alive_time = 300;
-//
-//
-//   /* test define */
-//   request_t* decoded_request;
-//   decoded_request->
-//
-//   /* test keep alive message */
-//
-//   /* test remove */
-//
-// }

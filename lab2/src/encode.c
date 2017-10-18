@@ -7,7 +7,6 @@
 //******************************************************
 #include "encode.h"
 #include <stdio.h>
-#include <signal.h>
 
 // *************************************
 // See the header file for documentation
@@ -15,9 +14,9 @@ void* encode(request_t* request, void* buff) {
     /* check if request and buff are pointing to the same request_t */
     if(buff != request) {
         /* copy request into buff */
-        ((request_t*)buff)->port = request->port;
         ((request_t*)buff)->msg_type = request->msg_type;
         ((request_t*)buff)->status = request->status;
+        ((request_t*)buff)->port = request->port;
     }
     /* flip port h2ns */
     ((request_t*)buff)->port = htons(((request_t*)buff)->port);
@@ -73,14 +72,12 @@ int is_invalid(request_t* request) {
 // *************************************
 // See the header file for documentation
 request_t* decode(void* buff, request_t* decoded) {
-    // raise(SIGINT);
-
     /* check if request and buff are pointing to the same request_t */
     if(buff != decoded) {
         /* copy request into buff */
-        ((request_t*)buff)->port = decoded->port;
         ((request_t*)buff)->msg_type = decoded->msg_type;
         ((request_t*)buff)->status = decoded->status;
+        ((request_t*)buff)->port = decoded->port;
         strncpy(((request_t*)buff)->service_name, decoded->service_name, MAX_SERVICE_NAME_LEN);
     }
 

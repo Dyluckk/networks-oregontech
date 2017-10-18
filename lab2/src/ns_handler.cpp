@@ -26,6 +26,32 @@ request_t* update_service(request_t* decoded_request, ns_lookup_table& lookup_ta
   return decoded_request;
 }
 
+request_t* keep_alive(request_t* decoded_request, ns_lookup_table& lookup_table, int keep_alive_time) {
+    /* check if exists */
+    string service_to_find(decoded_request->service_name);
+    unordered_map<std::string, service_info_t>::const_iterator search = lookup_table.find(service_to_find);
+    if(search != lookup_table.end()) {
+      /* found, check if port matches */
+      service_info_t lookup_values;
+      lookup_values = search->second;
+      /* if timeout, respond with an error
+       * due to the service already being defined */
+      if (lookup_values.port == decoded_request->port) {
+          decoded_request = update_service(decoded_request, lookup_table, keep_alive_time);
+      } else {
+          /* wrong port return */
+          decoded_request->msg_type = RESPONSE;
+          decoded_request->status = INVALID_ARG;
+      }
+    }
+    else {
+      /* not found, return */
+      decoded_request->msg_type = RESPONSE;
+      decoded_request->status = INVALID_ARG;
+    }
+    return decoded_request;
+}
+
 // *************************************
 // See the header file for documentation
 request_t* define_service(request_t* decoded_request, ns_lookup_table& lookup_table, int keep_alive_time) {
@@ -36,10 +62,10 @@ request_t* define_service(request_t* decoded_request, ns_lookup_table& lookup_ta
     /* found, check if service has timedout */
     service_info_t lookup_values;
     lookup_values = search->second;
-    /* if timeout, respond with an error
+    /* if not timedout, respond with an error
      * due to the service already being defined */
     time_t current_epoch = time(0);
-    if (lookup_values.port < current_epoch) {
+    if (lookup_values.timeout > current_epoch) {
       /* change flags for response */
       decoded_request->msg_type = RESPONSE;
       decoded_request->status = SERVICE_IN_USE;
@@ -98,12 +124,22 @@ request_t* lookup_service_port(request_t* decoded_request, ns_lookup_table& look
 request_t* remove_service(request_t* decoded_request, ns_lookup_table& lookup_table) {
   string service_name_to_remove(decoded_request->service_name);
 
+  service_info_t lookup_values;
   unordered_map<std::string, service_info_t>::const_iterator search = lookup_table.find(decoded_request->service_name);
   /* the found port */
   if(search != lookup_table.end()) {
-    lookup_table.erase(service_name_to_remove);
-    decoded_request->msg_type = RESPONSE;
-    decoded_request->status = SUCCESS;
+    lookup_values = search->second;
+    /* check if port matches */
+    // printf("%d\n", decoded_request->port);
+    if(lookup_values.port == decoded_request->port) {
+        lookup_table.erase(service_name_to_remove);
+        decoded_request->msg_type = RESPONSE;
+        decoded_request->status = SUCCESS;
+    /* error on non matching port */
+    } else {
+        decoded_request->msg_type = RESPONSE;
+        decoded_request->status = INVALID_ARG;
+    }
   }
   /* service not found */
   else {
@@ -127,4 +163,30 @@ void clear_timedout_services( ns_lookup_table& lookup_table, int keep_alive_time
             it++;
         }
     }
+}
+
+// *************************************
+// See the header file for documentation
+request_t* create_ports_full_response(request_t* decoded_request) {
+    decoded_request->msg_type = RESPONSE;
+    decoded_request->status = ALL_PORTS_BUSY;
+    return decoded_request;
+}
+
+
+//TODO ask phil if this is the correct response behavior
+// *************************************
+// See the header file for documentation
+request_t* create_bad_request_response(request_t* decoded_request) {
+    decoded_request->msg_type = RESPONSE;
+    decoded_request->status = INVALID_ARG;
+    return decoded_request;
+}
+
+// *************************************
+// See the header file for documentation
+request_t* create_shutdown_request_response(request_t* decoded_request) {
+    decoded_request->msg_type = RESPONSE;
+    decoded_request->status = SUCCESS;
+    return decoded_request;
 }
