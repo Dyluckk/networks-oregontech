@@ -21,7 +21,7 @@ void DieWithError(char *errorMessage)
 /* TCP client handling function */
 void HandleTCPClient(int clntSocket)
 {
-    char echoBuffer[RCVBUFSIZE];        /* Buffer for echo string */
+    char echoBuffer[RCVBUFSIZE] = {0};        /* Buffer for echo string */
     int recvMsgSize;                    /* Size of received message */
 
     /* Receive message from client */
