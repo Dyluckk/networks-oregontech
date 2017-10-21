@@ -7,7 +7,7 @@
 #include <unistd.h>     /* for close() */
 
 #define MAXPENDING 5    /* Maximum outstanding connection requests */
-#define RCVBUFSIZE 32   /* Size of receive buffer */
+#define RCVBUFSIZE 200   /* Size of receive buffer */
 
 using std::string;
 
@@ -22,16 +22,17 @@ void DieWithError(char *errorMessage)
 void HandleTCPClient(int clntSocket)
 {
     char echoBuffer[RCVBUFSIZE] = {0};        /* Buffer for echo string */
-    int recvMsgSize;                    /* Size of received message */
+    int recvMsgSize;         /* Size of received message */
 
     /* Receive message from client */
     if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE, 0)) < 0)
         DieWithError("recv() failed");
 
+    printf("size of echoBuffer: %d\n", sizeof(echoBuffer));
+
     /* Send received string and receive again until end of transmission */
     while (recvMsgSize > 0)      /* zero indicates end of transmission */
     {
-
         printf("echoBuffer: \n%s\n\n", echoBuffer);
 
         /* Echo message back to client */

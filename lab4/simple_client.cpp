@@ -2,10 +2,16 @@
 #include <sys/socket.h> /* for socket(), connect(), send(), and recv() */
 #include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
 #include <stdlib.h>     /* for atoi() and exit() */
+#include <string>
 #include <string.h>     /* for memset() */
 #include <unistd.h>     /* for close() */
+#include <iostream>
 
-#define RCVBUFSIZE 32   /* Size of receive buffer */
+using std::string;
+using std::cin;
+using std::cout;
+
+#define RCVBUFSIZE 200   /* Size of receive buffer */
 
 /* Error handling function */
 void DieWithError(char *errorMessage)
@@ -20,7 +26,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in echoServAddr; /* Echo server address */
     unsigned short     echoServPort; /* Echo server port */
     char *servIP;                    /* Server IP address (dotted quad) */
-    char *echoString = { 0 };        /* String to send to echo server */
+    char* echoString;               /* String to send to echo server */
     char  echoBuffer[RCVBUFSIZE];    /* Buffer for echo string */
     unsigned int echoStringLen;      /* Length of string to echo */
     int bytesRcvd, totalBytesRcvd;   /* Bytes read in single recv()
@@ -28,14 +34,7 @@ int main(int argc, char *argv[])
 
     if ((argc < 2) || (argc > 3))    /* Test for correct number of arguments */
     {
-        fprintf(stderr, "Usage: %s  [<Echo Port>] <Echo Word>\n",
-                argv[0]);
-        exit(1);
-    }
-
-    if (argc != 3) /* Test for correct number of arguments */
-    {
-        fprintf(stderr, "Usage: %s  [<Echo Port>] <Echo Word>\n",
+        fprintf(stderr, "Usage: %s  [<Echo Port>]\n",
                 argv[0]);
         exit(1);
     }
@@ -43,7 +42,21 @@ int main(int argc, char *argv[])
     servIP = "127.0.0.1";
 
     echoServPort = atoi(argv[1]); /* set port */
-    echoString   = argv[2];       /* Second arg: string to echo */
+
+
+    /* for getting message from user input */
+    const int USER_INPUT_MAX = 256;
+    char user_input[USER_INPUT_MAX];
+
+    printf("Enter Message: ");
+    fgets(user_input, USER_INPUT_MAX, stdin);
+    user_input[strlen(user_input)-1] = '\0';
+
+    /* copy into the send buffer */
+    echoString = (char*)malloc(USER_INPUT_MAX);
+    strncpy(echoString, user_input, USER_INPUT_MAX);
+    echoString[USER_INPUT_MAX - 1] = '\0';
+
 
     /* Create a reliable, stream socket using TCP */
     if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) DieWithError(
@@ -63,8 +76,13 @@ int main(int argc, char *argv[])
     echoStringLen = strlen(echoString); /* Determine input length */
 
     /* Send the string to the server */
+
+    printf("size of echoString: %d\n", sizeof(echoString));
+
     if (send(sock, echoString, echoStringLen, 0) != echoStringLen) DieWithError(
             "send() sent a different number of bytes than expected");
+
+    free(echoString);
 
     /* Receive the same string back from the server */
     totalBytesRcvd = 0;
