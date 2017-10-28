@@ -676,7 +676,7 @@ void empty_request_bad() {
     if (recvlen >= 0) {
         recieved_buff = decode(recieved_buff, server_reponse);
         TEST_ASSERT(recieved_buff->msg_type == RESPONSE);
-        TEST_ASSERT(recieved_buff->status == INVALID_ARG);
+        TEST_ASSERT(recieved_buff->status == UNDEFINED_ERROR);
         free(server_reponse);
         free(recieved_buff);
     }
@@ -767,6 +767,8 @@ int main(int argc, char **argv) {
     RUN_TEST(lookup_port_not_found);
     RUN_TEST(keep_alive_valid);
     RUN_TEST(keep_alive_invalid_port);
+    RUN_TEST(empty_request_bad);
+    RUN_TEST(empty_request_bad);
     RUN_TEST(empty_request_bad);
     RUN_TEST(remove_invalid_port);
     RUN_TEST(remove_invalid_service_name);

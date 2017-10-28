@@ -1,5 +1,4 @@
 // ******************************************************
-
 // A names server for CST 415
 //
 // Author: Zachary Wentworth
@@ -325,20 +324,24 @@ int main(int argc, char **argv) {
     bool turn_off_server = false;
 
     while (!turn_off_server) {
-        request_t *client_buff   = (request_t *)malloc(sizeof(request_t));
-        request_t *response_buff = (request_t *)malloc(sizeof(request_t));
+        request_t* client_buff = new request_t();
+        request_t* response_buff;
+
         recvlen = recvfrom(fd, client_buff, sizeof(request_t), 0,
                            (struct sockaddr *)&remaddr, &address_length);
 
         /* ensure bytes were recieved */
-        if (recvlen > 0) {
+        if (recvlen > 0 ) {
+
+            response_buff = client_buff;
             /* decode request */
-            response_buff = decode(response_buff, client_buff);
+            response_buff = decode(response_buff, response_buff);
 
             /* check if request was valid before process (on fail decode returns
                NULL)
              */
-            if (response_buff) {
+            if (response_buff != NULL) {
+
                 bool stop_triggered = false;
 
                 if (response_buff->msg_type == STOP) {
@@ -359,7 +362,7 @@ int main(int argc, char **argv) {
                 fclose(stdout);
 
                 /* encode response */
-                void *encoded_response = encode(response_buff, response_buff);
+                void* encoded_response = encode(response_buff, response_buff);
 
                 /* print to log */
                 freopen(log_file_name.c_str(), "a+", stdout);
@@ -381,16 +384,19 @@ int main(int argc, char **argv) {
                     fclose(stdout);
                 }
             } else {
+                delete response_buff;
+                response_buff = new request_t();
+
                 /* pring to log */
                 freopen(log_file_name.c_str(), "a+", stdout);
                 log_bad_request();
                 fclose(stdout);
 
                 /* create bad request response */
-                client_buff = create_bad_request_response(client_buff);
+                response_buff = create_bad_request_response(response_buff);
 
                 /* encode response */
-                void *encoded_response = encode(client_buff, client_buff);
+                void *encoded_response = encode(response_buff, response_buff);
 
                 /* print to log */
                 freopen(log_file_name.c_str(), "a+", stdout);
@@ -401,18 +407,23 @@ int main(int argc, char **argv) {
                 if (sendto(fd, encoded_response, sizeof(request_t), 0,
                    (struct sockaddr *)&remaddr, slen) == -1)
                    fprintf(stderr, "sendto");
+
+                delete response_buff;
             }
         } else {
+            delete response_buff;
+            response_buff = new request_t();
+
             /* pring to log */
             freopen(log_file_name.c_str(), "a+", stdout);
             log_bad_request();
             fclose(stdout);
 
             /* create bade  request response */
-            client_buff = create_bad_request_response(client_buff);
+            response_buff = create_bad_request_response(response_buff);
 
             /* encode response */
-            void *encoded_response = encode(client_buff, client_buff);
+            void *encoded_response = encode(response_buff, response_buff);
 
             /* print to log */
             freopen(log_file_name.c_str(), "a+", stdout);
@@ -423,9 +434,11 @@ int main(int argc, char **argv) {
             if (sendto(fd, encoded_response, sizeof(request_t), 0,
                        (struct sockaddr *)&remaddr,
                        slen) == -1) fprintf(stderr, "sendto");
+
+            delete response_buff;
         }
-        free(response_buff);
-        free(client_buff);
+        delete client_buff;
     }
+    close(fd);
     return 0;
 }

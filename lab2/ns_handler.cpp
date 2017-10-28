@@ -227,7 +227,7 @@ request_t* create_ports_full_response(request_t *decoded_request) {
 // See the header file for documentation
 request_t* create_bad_request_response(request_t *decoded_request) {
     decoded_request->msg_type = RESPONSE;
-    decoded_request->status   = INVALID_ARG;
+    decoded_request->status   = UNDEFINED_ERROR;
     return decoded_request;
 }
 

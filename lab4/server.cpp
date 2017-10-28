@@ -23,7 +23,7 @@ void HandleTCPClient(int clntSocket)
 {
     char echoBuffer[RCVBUFSIZE] = {0};        /* Buffer for echo string */
     int recvMsgSize;         /* Size of received message */
-
+    
     /* Receive message from client */
     if ((recvMsgSize = recv(clntSocket, echoBuffer, RCVBUFSIZE, 0)) < 0)
         DieWithError("recv() failed");
