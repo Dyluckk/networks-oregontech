@@ -1,0 +1,14 @@
+﻿<Properties StartupConfiguration="{69B17686-8CC6-4FF6-8A68-1CE5784C8F91}|Default">
+  <MonoDevelop.Ide.Workbench ActiveDocument="networks_lab4_zacharywentworth/Program.cs">
+    <Files>
+      <File FileName="networks_lab4_zacharywentworth/Program.cs" Line="113" Column="9" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug|x86" />
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+  <MultiItemStartupConfigurations />
+  <MonoDevelop.Ide.ItemProperties.networks__lab4__zacharywentworth PreferredExecutionTarget="MonoDevelop.Default" />
+</Properties>
