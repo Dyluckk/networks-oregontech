@@ -55,35 +55,44 @@ int main(int argc, char const *argv[]) {
     return 0;
 }
 
-void serialize_dns_packet(char* buf, _dns_packet_t* dns_packet) {
+//TODO fix
+void ChangetoDnsNameFormat(unsigned char* dns,unsigned char* host)
+{
+    int lock = 0 , i;
+    strcat((char*)host,".");
 
-    char* header = {0};
-    header = (char*)(dns_packet->header);
-    strcpy(buf, header);
-
-    // int start_of_query = sizeof(_dns_packet_t) + 1;
-    // _dns_query_t* query = dns_packet->query;
-    // strcpy((char*)(buf[start_of_query]), query->qname);
-    // strcpy((char*)buf[start_of_query+strlen(query->qname)], (char*)(query->ques));
+    for(i = 0 ; i < strlen((char*)host) ; i++)
+    {
+        if(host[i]=='.')
+        {
+            *dns++ = i-lock;
+            for(;lock<i;lock++)
+            {
+                *dns++=host[lock];
+            }
+            lock++; //or lock=i+1;
+        }
+    }
+    *dns++='\0';
 }
 
 void encode_dns_request() {
     int sock_fd;
     struct sockaddr_in dest;
+    unsigned char buf[512] = {0};
+    struct _dns_header_t* dns_head = NULL;
+    struct QUESTION *qinfo = NULL;
+    unsigned char *qname;
 
-    _dns_packet_t* dns_packet = new _dns_packet_t();
-    _dns_header_t* dns_head = new _dns_header_t();
-    _dns_query_t* dns_query = new _dns_query_t();
-    _dns_question_t* dns_question = new _dns_question_t();
-
-    // char* root_server = "192.203.230.10";
-    char* root_server = "10.101.1.85";
+    char* root_server = "198.41.0.4";
 
     sock_fd = socket(AF_INET , SOCK_DGRAM , IPPROTO_UDP);
 
     dest.sin_family = AF_INET;
     dest.sin_port = htons(53);
     dest.sin_addr.s_addr = inet_addr(root_server);
+
+    dns_head = (struct _dns_header_t*)&buf;
 
     dns_head->trans_id = (unsigned short)htons(getpid());
 
@@ -94,6 +103,8 @@ void encode_dns_request() {
     dns_head->qr = 0;
 
     dns_head->r_code = 0;
+    dns_head->cd = 0;
+    dns_head->ad = 0;
     dns_head->z = 0;
     dns_head->ra = 0;
 
@@ -102,68 +113,45 @@ void encode_dns_request() {
     dns_head->auth_count = 0;
     dns_head->add_count = 0;
 
-    //NOTE might have to htons
-    dns_question->qtype = htons(1);
-    dns_question->qclass = htons(1);
+    unsigned char host[100];
 
-    dns_query->qname = "3www6google3com\0";
-    dns_query->ques = dns_question;
+    //Get the hostname from the terminal
+    printf("Enter Hostname to Lookup : ");
+    scanf("%s" , host);
 
-    dns_packet->header = dns_head;
-    dns_packet->query = dns_query;
+    //point to the query portion
+    qname =(unsigned char*)&buf[sizeof(struct _dns_header_t)];
 
-    char* packet = {0};
-    serialize_dns_packet(packet, dns_packet);
-    // int question_name_start = sizeof(struct _DNS_HEADER) + 1;
+    ChangetoDnsNameFormat(qname , host);
+    qinfo =(struct QUESTION*)&buf[sizeof(struct _dns_header_t) + (strlen((const char*)qname) + 1)]; //fill it
 
-    // query_name = (char*)&buf[question_name_start];
-    // char* name = "3www6google3com0";
-    // strcpy(query_name, (char*)name);
-    // int dns_question_start = question_name_start + strlen((char*)query_name);
-    // printf("%s\n", query_name);
-    // printf("%i\n", dns_head->q_count);
-    //
-    // dns_question =(struct _DNS_QUESTION*)&buf[dns_question_start];
-    //
-    // dns_question->qtype = 1;
-    // dns_question->qclass = 1;
-
-
-    // printf("stuff: %i\n", (char*)buf);
+    qinfo->qtype = htons(1); //type of the query , A , MX , CNAME , NS etc
+    qinfo->qclass = htons(1); //its internet (lol)
 
     printf("\nSending Packet...");
 
-    if( sendto(sock_fd,packet, sizeof(dns_packet),0,(struct sockaddr*)&dest,sizeof(dest)) < 0)
+    if( sendto(sock_fd,(char*)buf, 256, 0,(struct sockaddr*)&dest,sizeof(dest)) < 0)
     {
         perror("sendto failed");
     }
     printf("Done\n");
 
-
-    delete dns_packet;
-    delete dns_head;
-    delete dns_query;
-    delete dns_question;
-
     //Receive the answer
-    // int i = sizeof dest;
-    // printf("\nReceiving answer...");
-    // if(recvfrom (sock_fd,(char*)buf , 65536 , 0 , (struct sockaddr*)&dest , (socklen_t*)&i ) < 0)
-    // {
-    //     perror("recvfrom failed");
-    // }
-    // printf("Done\n");
-    //
-    // dns_head = (struct _DNS_HEADER*) buf;
+    int i;
+    printf("\nReceiving answer...");
+    if(recvfrom (sock_fd,(char*)buf , 65536 , 0 , (struct sockaddr*)&dest , (socklen_t*)&i ) < 0)
+    {
+        perror("recvfrom failed");
+    }
+    printf("Done\n");
 
-    //move ahead of the dns header and the query field
-    // unsigned char* reader = &buf[sizeof(struct _DNS_HEADER) + (strlen((const char*)query_name)+1) + sizeof(struct _DNS_QUESTION)];
+    dns_head = (_dns_header_t*) buf;
 
-    // printf("\nThe response contains : ");
-    // printf("\n %d RESPONSE.", dns_head->qr);
-    // printf("\n %d r_code.", dns_head->r_code);
-    // printf("\n %d Questions.",ntohs(dns_head->q_count));
-    // printf("\n %d Answers.",ntohs(dns_head->ans_count));
-    // printf("\n %d Authoritative Servers.",ntohs(dns_head->auth_count));
-    // printf("\n %d Additional records.\n\n",ntohs(dns_head->add_count));
+    printf("\nThe response contains : ");
+    printf("\n %d RESPONSE.", dns_head->qr);
+    printf("\n %d r_code.", dns_head->r_code);
+    printf("\n %d Questions.",ntohs(dns_head->q_count));
+    printf("\n %d Answers.",ntohs(dns_head->ans_count));
+    printf("\n %d Authoritative Servers.",ntohs(dns_head->auth_count));
+    printf("\n %d Additional records.\n\n",ntohs(dns_head->add_count));
 }

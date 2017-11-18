@@ -10,36 +10,57 @@
 #define QR_QUERY 0;
 #define QR_RESPONSE 1;
 
-typedef struct {
-    uint16_t trans_id; /* used by the client to match up replies with queries.*/
+struct _dns_header_t{
+    unsigned short trans_id; // identification number
 
-    uint16_t rd:1; /* should pursue the query recursively */
-    uint16_t tc:1; /* is message truncated */
-    uint16_t aa:1; /* is responding ns authority for the domain name */
-    uint16_t opcode:4; /* kind of query (0 indicates standard query.) */
-    uint16_t qr:1; /*  whether this message is a query 0, or a response 1 */
+    unsigned char rd :1; // recursion desired
+    unsigned char tc :1; // truncated message
+    unsigned char aa :1; // authoritive answer
+    unsigned char opcode :4; // purpose of message
+    unsigned char qr :1; // query/response flag
 
-    uint16_t r_code:4; /* response code */
-    uint16_t z:3; /* reserved for future use. Set this field to 0. */
-    uint16_t ra:1; /* whether recursive query support is available in the ns */
+    unsigned char r_code :4; // response code
+    unsigned char cd :1; // checking disabled
+    unsigned char ad :1; // authenticated data
+    unsigned char z :1; // its z! reserved
+    unsigned char ra :1; // recursion available
 
-    uint16_t q_count; /* # of entries in the question section */
-    uint16_t ans_count; /* # of resource records in the answer section */
-    uint16_t auth_count; /* # of ns records in the authority records section */
-    uint16_t add_count; /* # of ns records in the additional records section */
-} _dns_header_t;
+    unsigned short q_count; // number of question entries
+    unsigned short ans_count; // number of answer entries
+    unsigned short auth_count; // number of authority entries
+    unsigned short add_count; // number of resource entries
 
-typedef struct {
-    u_short qtype;
-    u_short qclass;
-} _dns_question_t;
 
-typedef struct  {
-    char* qname;
-    _dns_question_t* ques;
-} _dns_query_t;
+    // unsigned short trans_id; /* used by the client to match up replies with queries.*/
+    //
+    // unsigned char rd:1; /* should pursue the query recursively */
+    // unsigned char tc:1; /* is message truncated */
+    // unsigned char aa:1; /* is responding ns authority for the domain name */
+    // unsigned char opcode:4; /* kind of query (0 indicates standard query.) */
+    // unsigned char qr:1; /*  whether this message is a query 0, or a response 1 */
+    //
+    // unsigned char  r_code:4; /* response code */
+    // unsigned char  z:3; /* reserved for future use. Set this field to 0. */
+    // unsigned char  ra:1; /* whether recursive query support is available in the ns */
+    //
+    // unsigned short q_count; /* # of entries in the question section */
+    // unsigned short ans_count; /* # of resource records in the answer section */
+    // unsigned short auth_count; /* # of ns records in the authority records section */
+    // unsigned short add_count; /* # of ns records in the additional records section */
+    // // char dns_query[255];
+    // // char name[255];
+    // // unsigned short q_type;
+    // // unsigned short q_class;
+};
 
-typedef struct {
-     _dns_header_t* header;
-     _dns_query_t* query;
-} _dns_packet_t;
+struct QUESTION
+{
+    unsigned short qtype;
+    unsigned short qclass;
+};
+
+typedef struct
+{
+    unsigned char *name;
+    struct QUESTION *ques;
+} QUERY_t;
