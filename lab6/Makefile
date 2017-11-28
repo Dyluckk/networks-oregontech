@@ -15,8 +15,8 @@ clean:
 .c.o:
 	g++ $(COPTS) -c $? -o $@
 
-dns_resolver: dns_resolver.cpp dns_header.h
-	g++ $(COPTS) $(CFLAGS) dns_resolver.cpp -o dns_resolver
+dns_resolver: dns_resolver.cpp dns_header.h Locked_Multi.h
+	g++ $(COPTS) $(CFLAGS) dns_resolver.cpp Locked_Multi.cpp -o dns_resolver
 
 dns_client: dns_client.cpp
 	g++ $(COPTS) $(CFLAGS) dns_client.cpp -o dns_client

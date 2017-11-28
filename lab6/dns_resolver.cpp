@@ -9,59 +9,41 @@
 #include <resolv.h>
 #include <netdb.h>
 #include <sstream>
-
 #include <iostream>
 #include <string.h>
 #include <string>
 #include <ctype.h>
+#include <vector>
+#include <map>
+#include <unordered_map>
+#include <utility>
 
 #include "dns_header.h"
+#include "Locked_Multi.h"
 
-
-#include <vector>
 using std::string;
 
-void send_dns_request();
-void create_dns_packet();
-void encode_dns_request();
-void decode_dns_response();
+typedef std::unordered_map<string, string> temp_ns_cont_t;
+
+void send_dns_request(char* ns_name);
 void name_to_dns_format(unsigned char* dns_head, char* host);
-size_t LevenshteinDistance(const std::string& s1, const std::string& s2);
 void read_name(unsigned char *buf, int& index, char * name, int data_len);
 void read_ptr_name(unsigned char *buf, int offset, char * name, int& name_index, bool &stop);
 void convert_name(char * name);
 int is_bit_set(int n, int num);
-//TODO answer
-void decode_authoritative_record(unsigned char* buf, int& k);
-void decode_answer_or_additional_record(unsigned char* buf, int& k);
+void decode_answer_record(unsigned char* buf, int& k);
+void decode_authoritative_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns);
+void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns);
 void read_address(unsigned char *buf, int offset, char * name);
 
+Locked_Multi* ns_cache = new Locked_Multi();
+
 int main(int argc, char const *argv[]) {
+
     /* Main Thread */
-    // char* host = "3www6google3com";
 
-    //pick the closest match
-
-    // std::vector<string> ns_chache = {"com.facebook.profile", "com", "com.facebook", "com.youtube", "com.google"};
-    // string test_string = "com.gmail";
-    //
-    // size_t best_dst = 99999;
-    // int best_index = 0;
-    // for (int i = 0; i < ns_chache.size(); i++) {
-    //     /* code */
-    //     size_t distance = LevenshteinDistance(ns_chache[i], test_string);
-    //     printf("%i\n",distance);
-    //     // printf("%i\n", best_dst );
-    //     if(distance < best_dst) {
-    //         best_dst = distance;
-    //         best_index = i;
-    //     }
-    // }
-
-    //
-    // printf("closest match: %s\n", ns_chache[best_index].c_str() );
-
-    encode_dns_request();
+    char* root_server = "198.41.0.4";
+    send_dns_request(root_server);
 
     /* setup TCP connections for clients */
 
@@ -92,60 +74,13 @@ int main(int argc, char const *argv[]) {
     return 0;
 }
 
-size_t LevenshteinDistance(const std::string& s1, const std::string& s2) {
-    const size_t m(s1.size());
-    const size_t n(s2.size());
-
-    if (m == 0) return n;
-
-    if (n == 0) return m;
-
-    size_t *costs = new size_t[n + 1];
-
-    for (size_t k = 0; k <= n; k++) costs[k] = k;
-
-    size_t i = 0;
-
-    for (std::string::const_iterator it1 = s1.begin(); it1 != s1.end();
-         ++it1, ++i)
-    {
-        costs[0] = i + 1;
-        size_t corner = i;
-
-        size_t j = 0;
-
-        for (std::string::const_iterator it2 = s2.begin(); it2 != s2.end();
-             ++it2, ++j)
-        {
-            size_t upper = costs[j + 1];
-
-            if (*it1 == *it2)
-            {
-                costs[j + 1] = corner;
-            }
-            else
-            {
-                size_t t(upper < corner ? upper : corner);
-                costs[j + 1] = (costs[j] < t ? costs[j] : t) + 1;
-            }
-
-            corner = upper;
-        }
-    }
-
-    size_t result = costs[n];
-    delete[] costs;
-
-    return result;
-}
-
-void encode_dns_request() {
+void send_dns_request(char* ns_name) {
     int sock_fd;
     struct sockaddr_in dest;
     _dns_header_t* dns_head = new _dns_header_t();
 
     //TODO get from arg, or set to default
-    string root_server = "198.41.0.4";
+    string root_server = ns_name;
 
     sock_fd = socket(AF_INET , SOCK_DGRAM , IPPROTO_UDP);
 
@@ -172,7 +107,8 @@ void encode_dns_request() {
     dns_head->add_count = 0;
 
     // dns_head->name = "\x03www\x06google\x03\com\0";
-    dns_head->name = "www.google.com\0";
+    char name[255] = "www.redhat.com\0";
+    dns_head->name = name;
 
     dns_head->q_type = htons(1);
     dns_head->q_class = htons(1);
@@ -190,7 +126,7 @@ void encode_dns_request() {
     printf("Done\n");
     delete dns_head;
 
-    unsigned char* buf = new unsigned char;
+    unsigned char buf[65536];
     //Receive the answer
 
     /* why? is this needed? */
@@ -211,30 +147,256 @@ void encode_dns_request() {
     printf("\n %d Authoritative Servers.",ntohs(dns_head->auth_count));
     printf("\n %d Additional records.\n\n",ntohs(dns_head->add_count));
 
-
-    /* save all authoritative NS's */
-    // printf("%s\n", buf[sizeof(dns_head)]);
-
     // the response portion starts @ (char*)(&buf[sizeof(_dns_header_t)])
-    int k = sizeof(_dns_header_t);
+    // int k = (sizeof(unsigned short) * 8) + sizeof()
+    int k = strlen(name) + (sizeof(unsigned short) * 8) + 2;
+
+    /* temp storage for names to be put in cache */
+    temp_ns_cont_t found_ns;
 
     printf("\nAnswer Records : %d \n" , ntohs(dns_head->ans_count) );
     for(int i=0 ; i < ntohs(dns_head->ans_count) ; i++) {
-        decode_answer_or_additional_record(buf, k);
+        decode_answer_record(buf, k);
     }
 
     printf("\nAuthoritative Records : %d \n", ntohs(dns_head->auth_count));
     for (int i = 0; i < ntohs(dns_head->auth_count); i++) {
-        decode_authoritative_record(buf, k);
+        decode_authoritative_record(buf, k, found_ns);
     }
 
     printf("\nAdditional Records : %d \n" , ntohs(dns_head->add_count) );
     for(int i=0 ; i < ntohs(dns_head->add_count) ; i++) {
         /* save the corresponding IPV4 address of the NS's */
-        decode_answer_or_additional_record(buf, k);
+        decode_additional_record(buf, k, found_ns);
     }
 
+    printf("\n\n\n\n");
+    MIterPair it = ns_cache->GetNS("com");
+    while(it.first != it.second)
+    {
+        printf("key: ");
+        printf("%s  ", it.first->first.c_str());
+        printf("ns: ");
+        printf("%s  ", it.first->second.first.c_str());
+        printf("addr: ");
+        printf("%s\n", it.first->second.second.c_str());
+        it.first++;
+    }
+
+
     return;
+}
+
+void decode_authoritative_record(unsigned char* buf, i  nt& k, temp_ns_cont_t& found_ns) {
+
+    /* fill our struct */
+    _res_record_t *res_rec = new _res_record_t();
+    char name[256];
+    memset(name, 0, 256);
+
+    /* if name was found without compression, move passed trailing null */
+    if (buf[k] == '\0') k++;
+
+    read_name(buf, k, name, 255);
+
+    size_t len = strlen(name)+1;
+    res_rec->r_name = new char [len]; // allocate for string and ending \0
+    strcpy(res_rec->r_name, name);
+
+    printf("NAME: %s", res_rec->r_name);
+
+    /* move to next byte */
+    k++;
+
+    /* copy type */
+    res_rec->r_type = *((unsigned short *)&buf[k]);
+    printf("   TYPE: %d", res_rec->r_type);
+
+    /* move passed read bytes */
+    k += 2;
+
+    /* copy class */
+    res_rec->r_class = *((unsigned short *)&buf[k]);
+    printf("   CLASS: %d", res_rec->r_class);
+
+    /* move passed read bytes */
+    k += 2;
+
+    /* don't care about ttl */
+    /* move passed the ttl bytes */
+    k += 4;
+
+    res_rec->r_data_len = buf[k];
+    printf("   D_LENGTH: %d", res_rec->r_data_len);
+
+    /* move passed read bytes */
+    k += 1;
+
+    memset(name, 0, 255);
+    read_name(buf, k, name, res_rec->r_data_len);
+
+    /* convert to '.' format */
+    convert_name(name);
+    len = strlen(name)+1;
+    res_rec->r_data = new char [len]; // allocate for string and ending \0
+    strcpy(res_rec->r_data, name);
+    printf("   DATA: %s\n", res_rec->r_data);
+
+    found_ns.insert({res_rec->r_data, res_rec->r_name});
+
+    delete res_rec->r_name;
+    delete res_rec->r_data;
+    delete res_rec;
+}
+
+void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns) {
+    /* fill our struct */
+    _res_record_t *res_rec = new _res_record_t();
+    char name[256];
+    memset(name, 0, 256);
+
+    /* if name was found without compression, move passed trailing null */
+    if (buf[k] == '\0') k++;
+
+    read_name(buf, k, name, 255);
+    convert_name(name);
+
+    size_t len = strlen(name)+1;
+    res_rec->r_name = new char [len]; // allocate for string and ending \0
+    strcpy(res_rec->r_name, name);
+
+    // res_rec->r_name = name;
+    printf("NAME: %s", res_rec->r_name);
+
+    /* move to next byte */
+    k++;
+
+    /* copy type */
+    res_rec->r_type = *((unsigned short *)&buf[k]);
+    printf("   TYPE: %d", res_rec->r_type);
+
+    /* move passed read bytes */
+    k += 2;
+
+    /* copy class */
+    res_rec->r_class = *((unsigned short *)&buf[k]);
+    printf("   CLASS: %d", res_rec->r_class);
+
+    /* move passed read bytes */
+    k += 2;
+
+    /* don't care about ttl */
+    /* move passed the ttl bytes */
+    k += 4;
+
+    res_rec->r_data_len = buf[k];
+    printf("   D_LENGTH: %d", res_rec->r_data_len);
+
+    /* move passed read bytes */
+    k += 1;
+
+    /* if type is NS read data */
+    if(res_rec->r_type == IPV4_T) {
+        memset(name, 0, 255);
+        read_address(buf, k, name);
+        len = strlen(name)+1;
+        res_rec->r_data = new char [len]; // allocate for string and ending \0
+        strcpy(res_rec->r_data, name);
+
+        printf("   DATA: %s\n", res_rec->r_data);
+
+
+        // Declare an iterator to unordered_map
+        temp_ns_cont_t::iterator it;
+
+        it = found_ns.find(res_rec->r_name);
+
+        // Check if iterator points to end of map
+        if (it != found_ns.end()) {
+            // std::cout << "Element Found - ";
+
+            std::pair<string, string> ns_and_addr;
+            string key = it->second;
+            ns_and_addr.first = it->first;
+            ns_and_addr.second = res_rec->r_data;
+
+            ns_cache->Emplace(key, ns_and_addr);
+
+            std::cout << key << " " << it->first  << " " << res_rec->r_data << "\n\n\n";
+        }
+
+        delete res_rec->r_data;
+
+    }
+    else {
+        printf("   DATA: ipv6 ignored\n");
+    }
+
+    k +=res_rec->r_data_len;
+    /* TODO store nameserver to db */
+
+    delete res_rec->r_name;
+    delete res_rec;
+}
+
+void decode_answer_record(unsigned char* buf, int& k) {
+    /* fill our struct */
+    _res_record_t *res_rec = new _res_record_t();
+    char name[256];
+    memset(name, 0, 256);
+
+    /* if name was found without compression, move passed trailing null */
+    if (buf[k] == '\0') k++;
+
+    read_name(buf, k, name, 255);
+    convert_name(name);
+    res_rec->r_name = name;
+    printf("NAME: %s", res_rec->r_name);
+
+    /* move to next byte */
+    k++;
+
+    /* copy type */
+    res_rec->r_type = *((unsigned short *)&buf[k]);
+    printf("   TYPE: %d", res_rec->r_type);
+
+    /* move passed read bytes */
+    k += 2;
+
+    /* copy class */
+    res_rec->r_class = *((unsigned short *)&buf[k]);
+    printf("   CLASS: %d", res_rec->r_class);
+
+    /* move passed read bytes */
+    k += 2;
+
+    /* don't care about ttl */
+    /* move passed the ttl bytes */
+    k += 4;
+
+    res_rec->r_data_len = buf[k];
+    printf("   D_LENGTH: %d", res_rec->r_data_len);
+
+    /* move passed read bytes */
+    k += 1;
+
+    /* if type is NS read data */
+    if(res_rec->r_type == IPV4_T) {
+        memset(name, 0, 255);
+        read_address(buf, k, name);
+        // read_name(buf, k, name, res_rec->r_data_len);
+        res_rec->r_data = name;
+        printf("   DATA: %s\n", res_rec->r_data);
+    }
+    else {
+        printf("   DATA: ipv6 ignored\n");
+    }
+
+    k +=res_rec->r_data_len;
+    /* TODO store nameserver to db */
+
+    delete res_rec;
+    //delete name;
 }
 
 void read_name(unsigned char *buf, int& index, char * name, int data_len) {
@@ -305,123 +467,6 @@ void convert_name(char * name) {
 /* helper function used to check if bits are set */
 int is_bit_set(int n, int num) {
     return ((1 << n) & num);
-}
-
-void decode_authoritative_record(unsigned char* buf, int& k) {
-    /* fill our struct */
-    _res_record_t *res_rec = new _res_record_t();
-    char name[256];
-    memset(name, 0, 256);
-
-    /* if name was found without compression, move passed trailing null */
-    if (buf[k] == '\0') k++;
-
-    read_name(buf, k, name, 255);
-
-    res_rec->r_name = name;
-    printf("NAME: %s", res_rec->r_name);
-
-    /* move to next byte */
-    k++;
-
-    /* copy type */
-    res_rec->r_type = *((unsigned short *)&buf[k]);
-    printf("   TYPE: %d", res_rec->r_type);
-
-    /* move passed read bytes */
-    k += 2;
-
-    /* copy class */
-    res_rec->r_class = *((unsigned short *)&buf[k]);
-    printf("   CLASS: %d", res_rec->r_class);
-
-    /* move passed read bytes */
-    k += 2;
-
-    /* don't care about ttl */
-    /* move passed the ttl bytes */
-    k += 4;
-
-    res_rec->r_data_len = buf[k];
-    printf("   D_LENGTH: %d", res_rec->r_data_len);
-
-    /* move passed read bytes */
-    k += 1;
-    //printf("%s\n", res_rec);
-    /* if type is NS read data */
-    memset(name, 0, 255);
-    //printf("%s\n", res_rec);
-    read_name(buf, k, name, res_rec->r_data_len);
-    //printf("%s\n", res_rec);
-    /* convert to '.' format */
-    convert_name(name);
-    res_rec->r_data = name;
-    printf("   DATA: %s\n", res_rec->r_data);
-
-    /* TODO store nameserver to db */
-
-    delete res_rec;
-    // delete name;
-}
-
-void decode_answer_or_additional_record(unsigned char* buf, int& k) {
-    /* fill our struct */
-    _res_record_t *res_rec = new _res_record_t();
-    char name[256];
-    memset(name, 0, 256);
-
-    /* if name was found without compression, move passed trailing null */
-    if (buf[k] == '\0') k++;
-
-    read_name(buf, k, name, 255);
-    convert_name(name);
-    res_rec->r_name = name;
-    printf("NAME: %s", res_rec->r_name);
-
-    /* move to next byte */
-    k++;
-
-    /* copy type */
-    res_rec->r_type = *((unsigned short *)&buf[k]);
-    printf("   TYPE: %d", res_rec->r_type);
-
-    /* move passed read bytes */
-    k += 2;
-
-    /* copy class */
-    res_rec->r_class = *((unsigned short *)&buf[k]);
-    printf("   CLASS: %d", res_rec->r_class);
-
-    /* move passed read bytes */
-    k += 2;
-
-    /* don't care about ttl */
-    /* move passed the ttl bytes */
-    k += 4;
-
-    res_rec->r_data_len = buf[k];
-    printf("   D_LENGTH: %d", res_rec->r_data_len);
-
-    /* move passed read bytes */
-    k += 1;
-
-    /* if type is NS read data */
-    if(res_rec->r_type == IPV4_T) {
-        memset(name, 0, 255);
-        read_address(buf, k, name);
-        // read_name(buf, k, name, res_rec->r_data_len);
-        res_rec->r_data = name;
-        printf("   DATA: %s\n", res_rec->r_data);
-    }
-    else {
-        printf("   DATA: ipv6 ignored\n");
-    }
-
-    k +=res_rec->r_data_len;
-    /* TODO store nameserver to db */
-
-    delete res_rec;
-    //delete name;
 }
 
 void read_address(unsigned char *buf, int offset, char * name) {
