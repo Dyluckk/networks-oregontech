@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <netinet/in.h>
 
-#define BUFFER 1024
+#define BUFFER 10000
 #define RCVBUFSIZE 1024
 
 using std::string;
@@ -64,12 +64,12 @@ int send_req(serv_info * info)
     {
         if((info->bytes_recv=recv(info->sock, info->buffer, BUFFER, 0)) <= 0)
             perror("Error receiving");
-        printf("response: %s\n", info->buffer);
+        printf("response:\n%s\n", info->buffer);
     }
 
     return 0;
 }
-int test_server(unsigned short server_port)
+int test_server(unsigned short server_port, string message)
 {
     serv_info * server = new serv_info;
     server->server_port = server_port;
@@ -78,7 +78,7 @@ int test_server(unsigned short server_port)
         perror("Failed to setup serv_info struct\n");
         return 1;
     }
-    server->command_string = "shutdown";
+    server->command_string = message;
     send_req(server);
 
     return 0;
@@ -86,13 +86,16 @@ int test_server(unsigned short server_port)
 
 int main(int argc, char * argv[])
 {
-    if(argc < 2)
+    if(argc < 3)
     {
-        perror("Port number needed");
+        printf("usage: <port> <meesage>\n");
         exit(1);
     }
-    int port = atoi(argv[1]);
+    else {
+        int port = atoi(argv[1]);
+        string message = argv[2];
 
-    printf("Port: %i\n", port);
-    printf("%i\n", test_server((unsigned short)port));
+        printf("Port: %i\n", port);
+        printf("%i\n", test_server((unsigned short)port, message));
+    }
 }

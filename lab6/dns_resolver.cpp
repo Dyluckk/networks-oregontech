@@ -44,9 +44,10 @@ void decode_answer_record(unsigned char* buf, int& k);
 void decode_authoritative_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns);
 void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns);
 void read_address(unsigned char *buf, int offset, char * name);
+string generate_verbose_path(vector<pair<string,string>> contacted_path);
 
-Locked_Multi ns_cache;
-Locked_Map resolved_names_cache;
+Locked_Multi* ns_cache;
+Locked_Map* resolved_names_cache;
 
 string root_server = "198.41.0.4";
 
@@ -117,7 +118,18 @@ int start_server(server_settings * srv_info)
     return 0;
 }
 
-int parse_args(int argc, char * argv[], char * nameserver)
+std::string HostToIp(const std::string& host) {
+    hostent* hostname = gethostbyname(host.c_str());
+    if(hostname) {
+        return std::string(inet_ntoa(**(in_addr**)hostname->h_addr_list));
+    }
+    else {
+        perror("invalid starting server\n");
+        exit(1);
+    }
+}
+
+int parse_args(int argc, char * argv[])
 {
     int c;
     while ((c = getopt (argc, argv, "n:")) != -1)
@@ -125,7 +137,8 @@ int parse_args(int argc, char * argv[], char * nameserver)
         switch (c)
         {
           case 'n':
-            strcpy(nameserver, optarg);
+            root_server = optarg;
+            root_server = HostToIp(root_server.c_str());
             break;
           case '?':
             if (optopt == 'n')
@@ -144,8 +157,20 @@ int handle_message(int comm_port, string request)
 {
     if(request.substr(0, 4) == "dump")
     {
-        //TODO dump ns_cache and resolved_names_cache
-        printf("dump\n");
+        /* genereate dump message */
+        string response = "";
+        response += "NS_CACHE:\n";
+        response += "=====================================================\n";
+        response += ns_cache->Serialize();//TODO dump ns_cache and resolved_names_cache
+        response += "\nResolved Names:\n";
+        response += "=====================================================\n";
+        response += resolved_names_cache->Serialize();
+        response += "\n";
+        std::cout << response;
+        /* reply to client */
+        if(send(comm_port, response.c_str(), response.length(), 0) !=
+                (unsigned)response.length())
+            perror("error sending response");
     }
     else if(request.substr(0, 7) == "verbose")
     {
@@ -182,7 +207,6 @@ int handle_message(int comm_port, string request)
     else
     {
         /* start lookup */
-
         string response = "";
         vector<pair<string,string>> contacted_path;
 
@@ -192,7 +216,7 @@ int handle_message(int comm_port, string request)
         string start_address = where_to_start(name_to_resolve, contacted_path);
 
         bool in_resolved_cache = false;
-        if(resolved_names_cache.Find(name_to_resolve) != "") {
+        if(resolved_names_cache->Find(name_to_resolve) != "") {
             in_resolved_cache = true;
         }
 
@@ -200,13 +224,14 @@ int handle_message(int comm_port, string request)
             bool success = send_dns_request((char*)start_address.c_str(), name_to_resolve, contacted_path);
             if(success) {
 
-                printf("ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
+                printf("ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache->Find(name_to_resolve).c_str());
 
                 /* generate and path if verbose is set */
-                // if(g_verbose) //TODO generate path
+                if(g_verbose) response+= generate_verbose_path(contacted_path);
 
                 /* send {name:address} back to client */
-                response += "{" + string(name_to_resolve) + ":" + resolved_names_cache.Find(name_to_resolve) + "}";
+                response += "FOUND @ {" + string(name_to_resolve) + ":" +
+                            resolved_names_cache->Find(name_to_resolve) + "}";
 
                 /* reply to client */
                 if(send(comm_port, response.c_str(), response.length(), 0) !=
@@ -216,9 +241,9 @@ int handle_message(int comm_port, string request)
 
             } else {
 
-
                 printf("ADDRESS NOT FOUND\n");
                 /* generate and path if verbose is set */
+                if(g_verbose) response+= generate_verbose_path(contacted_path);
 
                 /* send {name:NOT FOUND} back to client */
                 response += "{" + string(name_to_resolve) + ":" "NOT FOUND" + "}";
@@ -234,13 +259,18 @@ int handle_message(int comm_port, string request)
             /* if verbose is set send
             [retrieved from resolved_cache] {name:address} */
 
-            printf("[retrieved from resolved_cache] ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
+            printf("[retrieved from resolved_cache] ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache->Find(name_to_resolve).c_str());
 
-            response += "[retrieved from resolved_cache] {"
-                        + string(name_to_resolve)
-                        + ":"
-                        + resolved_names_cache.Find(name_to_resolve)
-                        + "}";
+            if(g_verbose) {
+                response += "[retrieved from resolved_cache] {"
+                            + string(name_to_resolve)
+                            + ":"
+                            + resolved_names_cache->Find(name_to_resolve)
+                            + "}";
+            } else {
+                response += "FOUND @ {" + string(name_to_resolve) + ":" +
+                            resolved_names_cache->Find(name_to_resolve) + "}";
+            }
 
             /* reply to client */
             if(send(comm_port, response.c_str(), response.length(), 0) !=
@@ -261,7 +291,7 @@ void handle_request(int sock)
     int msg_size = -1;
     char msg_buff[BUFFER] = {0};
     string request = "";
-    printf("comm_port: %i\n", comm_port);
+    // printf("comm_port: %i\n", comm_port);
     do
     {
         memset(msg_buff, 0, BUFFER);
@@ -310,9 +340,9 @@ int main(int argc, char * argv[])
 {
     g_shutdown = false;
     g_verbose = false;
-    char nameserver[BUFFER];
+    // char nameserver[BUFFER];
     avail_threads = 100;
-    if(parse_args(argc, argv, nameserver) != 0)
+    if(parse_args(argc, argv) != 0)
         return 1;
     server_settings * srv_info = new server_settings;
     memset(srv_info, 0, sizeof(server_settings));
@@ -321,6 +351,9 @@ int main(int argc, char * argv[])
         delete srv_info;
         return 2;
     }
+
+    ns_cache = new Locked_Multi();
+    resolved_names_cache = new Locked_Map();
 
     wait_for_client(srv_info);
 
@@ -355,6 +388,19 @@ string where_to_start(char* name_to_resolve, vector<pair<string,string>> contact
 
     }
 
+}
+
+string generate_verbose_path(vector<pair<string,string>> contacted_path) {
+    string verbose_path = "";
+
+    for (unsigned int i = 0; i < contacted_path.size(); i++) {
+
+        verbose_path += "contacted: {" + contacted_path[i].first + ":"
+                        + contacted_path[i].second + "}\n";
+
+    }
+
+    return verbose_path;
 }
 
 bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,string>>& prev_contacted) {
@@ -443,6 +489,10 @@ bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,s
         decode_answer_record(buf, k);
     }
 
+    /* check if name was put into resolved_names_cache */
+    if(resolved_names_cache->Find(name_to_resolve) != "") {
+        return true;
+    }
     if( ntohs(dns_head->auth_count) >= 1 &&  ntohs(dns_head->add_count >= 1)) {
         printf("\nAuthoritative Records : %d \n", ntohs(dns_head->auth_count));
         for (int i = 0; i < ntohs(dns_head->auth_count); i++) {
@@ -454,9 +504,6 @@ bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,s
             /* save the corresponding IPV4 address of the NS's */
             decode_additional_record(buf, k, found_ns);
         }
-
-        /* check if name was put into resolved_names_cache */
-        if(resolved_names_cache.Find(name_to_resolve) != "") return true;
 
         /* if not resolved look for name_to_resolve in ns_chache */
         char label[255] = {0};
@@ -488,7 +535,7 @@ bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,s
 }
 
 pair<string,string> check_ns_cache_for_label(char* label, vector<pair<string,string>>& prev_contacted) {
-    MIterPair it = ns_cache.GetNS(label);
+    MIterPair it = ns_cache->GetNS(label);
     while(it.first != it.second)
     {
         // printf("key: ");
@@ -725,7 +772,7 @@ void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_
             ns_and_addr.first = it->first;
             ns_and_addr.second = res_rec->r_data;
 
-            ns_cache.Emplace(key, ns_and_addr);
+            ns_cache->Emplace(key, ns_and_addr);
 
             // std::cout << key << " " << it->first  << " " << res_rec->r_data << "\n\n\n";
         }
@@ -800,7 +847,7 @@ void decode_answer_record(unsigned char* buf, int& k) {
         printf("   DATA: %s\n", res_rec->r_data);
 
         /* save to resolved names */
-        resolved_names_cache.Add(res_rec->r_name, res_rec->r_data);
+        resolved_names_cache->Add(res_rec->r_name, res_rec->r_data);
 
     }
     else {
