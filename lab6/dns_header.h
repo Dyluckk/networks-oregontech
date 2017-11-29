@@ -70,6 +70,7 @@ typedef struct {
                 if(name[i] != '.' && name[i] != '\0') {
                     os.write(&name[i],1);
                 }
+                /* stop copying if null reached */
                 else if(name[i] == '\0') {
                     done = true;
                 }

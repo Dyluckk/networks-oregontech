@@ -20,30 +20,38 @@
 
 #include "dns_header.h"
 #include "Locked_Multi.h"
+#include "Locked_Map.h"
+#include "timed_recvfrom.h"
 
 using std::string;
+using std::pair;
 
 typedef std::unordered_map<string, string> temp_ns_cont_t;
 
-void send_dns_request(char* ns_name);
+string where_to_start(char* name_to_resolve, vector<pair<string,string>> contacted_path);
+bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,string>>& prev_contacted);
+string trim_name(char* name_to_resolve);
 void name_to_dns_format(unsigned char* dns_head, char* host);
+pair<string,string> check_ns_cache_for_label(char* label, vector<pair<string,string>>& prev_contacted);
 void read_name(unsigned char *buf, int& index, char * name, int data_len);
 void read_ptr_name(unsigned char *buf, int offset, char * name, int& name_index, bool &stop);
-void convert_name(char * name);
+void convert_to_dotted_format(char * name);
+char* convert_to_dns_format(char* name_to_resolve);
 int is_bit_set(int n, int num);
 void decode_answer_record(unsigned char* buf, int& k);
 void decode_authoritative_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns);
 void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns);
 void read_address(unsigned char *buf, int offset, char * name);
 
-Locked_Multi* ns_cache = new Locked_Multi();
+Locked_Multi ns_cache;
+Locked_Map resolved_names_cache;
+
+string root_server = "198.41.0.4";
 
 int main(int argc, char const *argv[]) {
 
-    /* Main Thread */
-
-    char* root_server = "198.41.0.4";
-    send_dns_request(root_server);
+    // trim_name(name_to_resolve);
+    // convert_to_dns_format(name_to_resolve);
 
     /* setup TCP connections for clients */
 
@@ -61,20 +69,71 @@ int main(int argc, char const *argv[]) {
             //name - this is just a text string to look up via dns_head
             //invalid request (respond with error)
 
-        /* setup dns_head based on args */
-
-        /* encode dns_head request */
-
         /* send request */
 
-        /* recv response (timeout) */
+        /* Main Thread */
 
-            /* decode response */
+        for(;;) {
+            vector<pair<string,string>> contacted_path;
+            // "www.google.com\0";
+            char name_to_resolve[255];
+            std::cout << "enter name to resolve" << std::endl;
+            std::cin >>  name_to_resolve;
+            printf("\n");
+
+            string start_address = where_to_start(name_to_resolve, contacted_path);
+
+            bool in_resolved_cache = false;
+            if(resolved_names_cache.Find(name_to_resolve) != "") {
+                in_resolved_cache = true;
+            }
+
+            if(!in_resolved_cache) {
+                bool success = send_dns_request((char*)start_address.c_str(), name_to_resolve, contacted_path);
+                if(success) {
+                    printf("ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
+                } else {
+                    printf("ADDRESS NOT FOUND\n");
+                }
+            }
+            else {
+                printf("[retrieved from resolved_cache] ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
+            }
+
+        }
 
     return 0;
 }
 
-void send_dns_request(char* ns_name) {
+string where_to_start(char* name_to_resolve, vector<pair<string,string>> contacted_path) {
+    char label[255] = {0};
+    strcpy(label, convert_to_dns_format(name_to_resolve));
+    for(;;) {
+        pair<string,string> forward_ns = check_ns_cache_for_label(label, contacted_path);
+
+        if(forward_ns.first == "") {
+            convert_to_dotted_format(label);
+            bool trimmable = false;
+            for (int i = 0; label[i] != '\0'; i++) {
+                if(label[i] == '.') trimmable = true;
+            }
+            if(trimmable) {
+                strcpy(label, trim_name(label).c_str());
+                strcpy(label, convert_to_dns_format(label));
+            }
+            else {
+                return root_server;
+            }
+        }
+        else {
+            return forward_ns.second;
+        }
+
+    }
+
+}
+
+bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,string>>& prev_contacted) {
     int sock_fd;
     struct sockaddr_in dest;
     _dns_header_t* dns_head = new _dns_header_t();
@@ -107,8 +166,8 @@ void send_dns_request(char* ns_name) {
     dns_head->add_count = 0;
 
     // dns_head->name = "\x03www\x06google\x03\com\0";
-    char name[255] = "www.redhat.com\0";
-    dns_head->name = name;
+
+    dns_head->name = name_to_resolve;
 
     dns_head->q_type = htons(1);
     dns_head->q_class = htons(1);
@@ -116,6 +175,8 @@ void send_dns_request(char* ns_name) {
     std::stringstream stream;
 
     dns_head->serialize(stream);
+
+    printf("CONTACTING %s QUERY %s\n", ns_name,name_to_resolve);
 
     printf("\nSending Packet...");
 
@@ -132,7 +193,7 @@ void send_dns_request(char* ns_name) {
     /* why? is this needed? */
     int x;
     printf("\nReceiving answer...");
-    if(recvfrom (sock_fd, buf, 65536 , 0 , (struct sockaddr*)&dest , (socklen_t*)&x ) < 0)
+    if(timed_recvfrom(sock_fd, buf, 65536 , 0 , (struct sockaddr*)&dest , (socklen_t*)&x, 3) < 0)
     {
         perror("recvfrom failed");
     }
@@ -149,7 +210,7 @@ void send_dns_request(char* ns_name) {
 
     // the response portion starts @ (char*)(&buf[sizeof(_dns_header_t)])
     // int k = (sizeof(unsigned short) * 8) + sizeof()
-    int k = strlen(name) + (sizeof(unsigned short) * 8) + 2;
+    int k = strlen(name_to_resolve) + (sizeof(unsigned short) * 8) + 2;
 
     /* temp storage for names to be put in cache */
     temp_ns_cont_t found_ns;
@@ -159,35 +220,156 @@ void send_dns_request(char* ns_name) {
         decode_answer_record(buf, k);
     }
 
-    printf("\nAuthoritative Records : %d \n", ntohs(dns_head->auth_count));
-    for (int i = 0; i < ntohs(dns_head->auth_count); i++) {
-        decode_authoritative_record(buf, k, found_ns);
+    if( ntohs(dns_head->auth_count) >= 1 &&  ntohs(dns_head->add_count >= 1)) {
+        printf("\nAuthoritative Records : %d \n", ntohs(dns_head->auth_count));
+        for (int i = 0; i < ntohs(dns_head->auth_count); i++) {
+            decode_authoritative_record(buf, k, found_ns);
+        }
+
+        printf("\nAdditional Records : %d \n" , ntohs(dns_head->add_count) );
+        for(int i=0 ; i < ntohs(dns_head->add_count) ; i++) {
+            /* save the corresponding IPV4 address of the NS's */
+            decode_additional_record(buf, k, found_ns);
+        }
+
+        /* check if name was put into resolved_names_cache */
+        if(resolved_names_cache.Find(name_to_resolve) != "") return true;
+
+        /* if not resolved look for name_to_resolve in ns_chache */
+        char label[255] = {0};
+        strcpy(label, convert_to_dns_format(name_to_resolve));
+        for(;;) {
+            pair<string,string> forward_ns = check_ns_cache_for_label(label, prev_contacted);
+            if(forward_ns.first == "") {
+                convert_to_dotted_format(label);
+                bool trimmable = false;
+                for (int i = 0; label[i] != '\0'; i++) {
+                    if(label[i] == '.') trimmable = true;
+                }
+                if(trimmable) {
+                    strcpy(label, trim_name(label).c_str());
+                    strcpy(label, convert_to_dns_format(label));
+                }
+                else {
+                    return false;
+                }
+            }
+            else {
+                bool answered = send_dns_request((char*)forward_ns.second.c_str(), name_to_resolve, prev_contacted);
+                if(answered) return true;
+            }
+        }
     }
 
-    printf("\nAdditional Records : %d \n" , ntohs(dns_head->add_count) );
-    for(int i=0 ; i < ntohs(dns_head->add_count) ; i++) {
-        /* save the corresponding IPV4 address of the NS's */
-        decode_additional_record(buf, k, found_ns);
-    }
+    return false;
+}
 
-    printf("\n\n\n\n");
-    MIterPair it = ns_cache->GetNS("com");
+pair<string,string> check_ns_cache_for_label(char* label, vector<pair<string,string>>& prev_contacted) {
+    MIterPair it = ns_cache.GetNS(label);
     while(it.first != it.second)
     {
-        printf("key: ");
-        printf("%s  ", it.first->first.c_str());
-        printf("ns: ");
-        printf("%s  ", it.first->second.first.c_str());
-        printf("addr: ");
-        printf("%s\n", it.first->second.second.c_str());
+        // printf("key: ");
+        // printf("%s  ", it.first->first.c_str());
+        // printf("ns: ");
+        // printf("%s  ", it.first->second.first.c_str());
+        // printf("addr: ");
+        // printf("%s\n", it.first->second.second.c_str());
+
+        pair<string, string> lookup;
+        lookup.first = it.first->second.first;
+        lookup.second = it.first->second.second;
+
+        // char lookup[it.first->second.second.size()+1];
+        // strcpy(lookup, it.first->second.second.c_str());
+
+        bool found = false;
+
+        for(vector<pair<string,string>>::const_iterator it = prev_contacted.begin(); it != prev_contacted.end(); it++) {
+                // process i
+                if(it->first == lookup.first) found = true;
+                // cout << it->first << "\n"; // this will print all the contents of *features*
+        }
+
+        /* return ns to contact */
+        if(!found) {
+            pair<string, string> contacted;
+            contacted.first = lookup.first;
+            contacted.second = lookup.second;
+            prev_contacted.push_back(contacted);
+            return lookup;
+        }
+
         it.first++;
     }
 
-
-    return;
+    /* exhausted ns_cache, name */
+    pair<string,string> empty;
+    empty.first = "";
+    empty.second = "";
+    return empty;
 }
 
-void decode_authoritative_record(unsigned char* buf, i  nt& k, temp_ns_cont_t& found_ns) {
+string trim_name(char* name_to_resolve) {
+    int trimmed_sub_str_len = 0;
+    char trimmed_name[255] = {0};
+
+    for (int i = 0; name_to_resolve[i] != '.'; i++) {
+        if(name_to_resolve[i + 1] == '.') trimmed_sub_str_len = i + 1;
+    }
+
+    for (int i = trimmed_sub_str_len + 1, k = 0; name_to_resolve[i] != '\0'; i++, k++) {
+        trimmed_name[k] = name_to_resolve[i];
+    }
+
+    string trimmed(trimmed_name);
+    return trimmed;
+}
+
+char* convert_to_dns_format(char* name_to_resolve) {
+    string converted_name = "";
+    unsigned char before_dot_count = 0;
+    int prev_index = 0;
+    int index_counter = 0;
+    bool scanning = true;
+    bool done = false;
+
+    for(int i = 0; !done; i++) {
+
+        if(scanning) {
+            if(name_to_resolve[i] == '.' || name_to_resolve[i]== '\0') {
+                scanning = false;
+                converted_name.push_back(before_dot_count);
+                before_dot_count = '\x00';
+                i = prev_index - 1;
+                index_counter++;
+            }
+            else {
+                before_dot_count++;
+                index_counter++;
+            }
+        }
+        else {
+            /* copy char to converted_name*/
+            if(name_to_resolve[i] != '.' && name_to_resolve[i] != '\0') {
+                converted_name.push_back(name_to_resolve[i]);
+            }
+            /* stop copying if null reached */
+            else if(name_to_resolve[i] == '\0') {
+                done = true;
+            }
+            else {
+                prev_index += index_counter;
+                index_counter = 0;
+                scanning = true;
+            }
+        }
+    }
+    converted_name.push_back('\x00');
+
+    return (char*)converted_name.c_str();
+}
+
+void decode_authoritative_record(unsigned char* buf, int& k, temp_ns_cont_t& found_ns) {
 
     /* fill our struct */
     _res_record_t *res_rec = new _res_record_t();
@@ -236,7 +418,7 @@ void decode_authoritative_record(unsigned char* buf, i  nt& k, temp_ns_cont_t& f
     read_name(buf, k, name, res_rec->r_data_len);
 
     /* convert to '.' format */
-    convert_name(name);
+    convert_to_dotted_format(name);
     len = strlen(name)+1;
     res_rec->r_data = new char [len]; // allocate for string and ending \0
     strcpy(res_rec->r_data, name);
@@ -259,7 +441,7 @@ void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_
     if (buf[k] == '\0') k++;
 
     read_name(buf, k, name, 255);
-    convert_name(name);
+    convert_to_dotted_format(name);
 
     size_t len = strlen(name)+1;
     res_rec->r_name = new char [len]; // allocate for string and ending \0
@@ -320,9 +502,9 @@ void decode_additional_record(unsigned char* buf, int& k, temp_ns_cont_t& found_
             ns_and_addr.first = it->first;
             ns_and_addr.second = res_rec->r_data;
 
-            ns_cache->Emplace(key, ns_and_addr);
+            ns_cache.Emplace(key, ns_and_addr);
 
-            std::cout << key << " " << it->first  << " " << res_rec->r_data << "\n\n\n";
+            // std::cout << key << " " << it->first  << " " << res_rec->r_data << "\n\n\n";
         }
 
         delete res_rec->r_data;
@@ -349,8 +531,12 @@ void decode_answer_record(unsigned char* buf, int& k) {
     if (buf[k] == '\0') k++;
 
     read_name(buf, k, name, 255);
-    convert_name(name);
-    res_rec->r_name = name;
+    convert_to_dotted_format(name);
+
+    size_t len = strlen(name)+1;
+    res_rec->r_name = new char [len]; // allocate for string and ending \0
+    strcpy(res_rec->r_name, name);
+
     printf("NAME: %s", res_rec->r_name);
 
     /* move to next byte */
@@ -384,9 +570,15 @@ void decode_answer_record(unsigned char* buf, int& k) {
     if(res_rec->r_type == IPV4_T) {
         memset(name, 0, 255);
         read_address(buf, k, name);
+        len = strlen(name)+1;
+        res_rec->r_data = new char [len]; // allocate for string and ending \0
+        strcpy(res_rec->r_data, name);
         // read_name(buf, k, name, res_rec->r_data_len);
-        res_rec->r_data = name;
         printf("   DATA: %s\n", res_rec->r_data);
+
+        /* save to resolved names */
+        resolved_names_cache.Add(res_rec->r_name, res_rec->r_data);
+
     }
     else {
         printf("   DATA: ipv6 ignored\n");
@@ -447,7 +639,7 @@ void read_ptr_name(unsigned char *buf, int offset, char * name, int& name_index,
     stop = true;
 }
 
-void convert_name(char * name) {
+void convert_to_dotted_format(char * name) {
     int p = 0;
     int i = 0;
     for (i = 0; i < (int)strlen((const char *)name); i++)
