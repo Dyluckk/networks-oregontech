@@ -18,10 +18,12 @@ class Locked_Multi
 {
     public:
         Locked_Multi();
-        ~Locked_Multi();
         MIterPair GetNS(string find);
         int Emplace(string key, std::pair<string, string> value);
-        
+        vector<string> GetKeys();
+        string Serialize();
+        ~Locked_Multi();
+
     private:
         std::multimap<string, std::pair<string, string>> map;
         std::mutex mtx;

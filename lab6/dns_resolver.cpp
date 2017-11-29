@@ -17,11 +17,13 @@
 #include <map>
 #include <unordered_map>
 #include <utility>
+#include <atomic>
 
 #include "dns_header.h"
 #include "Locked_Multi.h"
 #include "Locked_Map.h"
 #include "timed_recvfrom.h"
+#include "timed_accept.h"
 
 using std::string;
 using std::pair;
@@ -48,59 +50,281 @@ Locked_Map resolved_names_cache;
 
 string root_server = "198.41.0.4";
 
-int main(int argc, char const *argv[]) {
+using std::string;
+using std::thread;
 
-    // trim_name(name_to_resolve);
-    // convert_to_dns_format(name_to_resolve);
+#define BUFFER 1024
+#define MAXPENDING 50
+static std::atomic<int> avail_threads;
 
-    /* setup TCP connections for clients */
+static std::atomic<bool> g_shutdown;
+static std::atomic<bool> g_verbose;
 
-    /* MULTI_THREAD on accept (use timed accept probably like in prev labs) */
+typedef struct
+{
+    struct sockaddr_in server_addr;
+    struct sockaddr_in client_addr;
+    int server_sock;
+    int client_sock;
+    int server_port;
+    unsigned int client_len;
+} server_settings;
 
-        /* get echo message (check if in correct format) */
+int ready_and_bind(server_settings * socket_settings)
+{
+    if((socket_settings->server_sock =
+                socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+        return 1;
 
-        /* parse message */
+    memset(&(socket_settings->server_addr), 0,
+            sizeof(socket_settings->server_addr));
 
-        /* handle message for the following */
-            //dump
-            //verbose
-            //normal
-            //shutdown
-            //name - this is just a text string to look up via dns_head
-            //invalid request (respond with error)
+    socket_settings->server_addr.sin_family = AF_INET;
+    socket_settings->server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    socket_settings->server_addr.sin_port = htons(socket_settings->server_port);
 
-        /* send request */
+    int yes = 1;
 
-        /* Main Thread */
+    if(setsockopt(socket_settings->server_sock, SOL_SOCKET, SO_REUSEADDR,
+                &yes, sizeof(yes)) == -1)
+    {
+        perror("setsockopt");
+        exit(1);
+    }
 
-        for(;;) {
-            vector<pair<string,string>> contacted_path;
-            // "www.google.com\0";
-            char name_to_resolve[255];
-            std::cout << "enter name to resolve" << std::endl;
-            std::cin >>  name_to_resolve;
-            printf("\n");
+    //bind
+    if(bind(socket_settings->server_sock,
+                (struct sockaddr *) &socket_settings->server_addr,
+                sizeof(socket_settings->server_addr)) < 0)
+        return 2;
 
-            string start_address = where_to_start(name_to_resolve, contacted_path);
+    return 0;
+}
 
-            bool in_resolved_cache = false;
-            if(resolved_names_cache.Find(name_to_resolve) != "") {
-                in_resolved_cache = true;
+int start_server(server_settings * srv_info)
+{
+    int port = 55555;
+
+    srv_info->server_port = port;
+
+    if(ready_and_bind(srv_info) != 0)
+        return 1;
+
+
+    if(listen(srv_info->server_sock, MAXPENDING) < 0)
+        return 3;
+    printf("Recieving requests on port: %i\n", srv_info->server_port);
+    return 0;
+}
+
+int parse_args(int argc, char * argv[], char * nameserver)
+{
+    int c;
+    while ((c = getopt (argc, argv, "n:")) != -1)
+    {
+        switch (c)
+        {
+          case 'n':
+            strcpy(nameserver, optarg);
+            break;
+          case '?':
+            if (optopt == 'n')
+              perror("Option -n requires an argument.\n");
+            else
+              perror("Unknown option character\n");
+            return 1;
+          default:
+            break;
+        }
+    }
+    return 0;
+}
+
+int handle_message(int comm_port, string request)
+{
+    if(request.substr(0, 4) == "dump")
+    {
+        //TODO dump ns_cache and resolved_names_cache
+        printf("dump\n");
+    }
+    else if(request.substr(0, 7) == "verbose")
+    {
+        g_verbose = true;
+        string response = "output set to verbose";
+        if(send(comm_port,response.c_str(), response.length(), 0) !=
+                (unsigned)response.length())
+            perror("Error sending verbose response");
+        close(comm_port);
+        printf("verbose\n");
+    }
+    else if(request.substr(0, 6) == "normal")
+    {
+        string response = "output set to normal";
+        if(send(comm_port,response.c_str(), response.length(), 0) !=
+                (unsigned)response.length())
+            perror("Error sending normal response");
+        close(comm_port);
+        g_verbose = false;
+        printf("normal\n");
+    }
+    else if(request.substr(0, 8) == "shutdown")
+    {
+        string response = "shutting down...";
+        printf("Sending %s\n", response.c_str());
+        if(send(comm_port, response.c_str(), response.length(), 0) !=
+                (unsigned)response.length())
+            perror("Error sending shutdown response");
+        close(comm_port);
+        g_shutdown = true;
+        printf("shutdown\n");
+    }
+    //handle a name lookup
+    else
+    {
+        /* start lookup */
+
+        string response = "";
+        vector<pair<string,string>> contacted_path;
+
+        char name_to_resolve[255] = {0};
+        strcpy(name_to_resolve, request.c_str());
+
+        string start_address = where_to_start(name_to_resolve, contacted_path);
+
+        bool in_resolved_cache = false;
+        if(resolved_names_cache.Find(name_to_resolve) != "") {
+            in_resolved_cache = true;
+        }
+
+        if(!in_resolved_cache) {
+            bool success = send_dns_request((char*)start_address.c_str(), name_to_resolve, contacted_path);
+            if(success) {
+
+                printf("ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
+
+                /* generate and path if verbose is set */
+                // if(g_verbose) //TODO generate path
+
+                /* send {name:address} back to client */
+                response += "{" + string(name_to_resolve) + ":" + resolved_names_cache.Find(name_to_resolve) + "}";
+
+                /* reply to client */
+                if(send(comm_port, response.c_str(), response.length(), 0) !=
+                        (unsigned)response.length())
+                    perror("error sending response");
+
+
+            } else {
+
+
+                printf("ADDRESS NOT FOUND\n");
+                /* generate and path if verbose is set */
+
+                /* send {name:NOT FOUND} back to client */
+                response += "{" + string(name_to_resolve) + ":" "NOT FOUND" + "}";
+                /* reply to client */
+                if(send(comm_port, response.c_str(), response.length(), 0) !=
+                        (unsigned)response.length())
+                    perror("error sending response");
+
             }
+        }
+        else {
 
-            if(!in_resolved_cache) {
-                bool success = send_dns_request((char*)start_address.c_str(), name_to_resolve, contacted_path);
-                if(success) {
-                    printf("ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
-                } else {
-                    printf("ADDRESS NOT FOUND\n");
-                }
-            }
-            else {
-                printf("[retrieved from resolved_cache] ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
-            }
+            /* if verbose is set send
+            [retrieved from resolved_cache] {name:address} */
+
+            printf("[retrieved from resolved_cache] ADDRESS FOR %s FOUND@ %s\n",name_to_resolve, resolved_names_cache.Find(name_to_resolve).c_str());
+
+            response += "[retrieved from resolved_cache] {"
+                        + string(name_to_resolve)
+                        + ":"
+                        + resolved_names_cache.Find(name_to_resolve)
+                        + "}";
+
+            /* reply to client */
+            if(send(comm_port, response.c_str(), response.length(), 0) !=
+                    (unsigned)response.length())
+                perror("error sending response");
 
         }
+
+        close(comm_port);
+    }
+
+    return 0;
+}
+
+void handle_request(int sock)
+{
+    int comm_port = sock;
+    int msg_size = -1;
+    char msg_buff[BUFFER] = {0};
+    string request = "";
+    printf("comm_port: %i\n", comm_port);
+    do
+    {
+        memset(msg_buff, 0, BUFFER);
+        if((msg_size = recv(comm_port, msg_buff, BUFFER, 0)) < 0)
+        {
+            perror("mesage size is < 0");
+            break;
+        }
+
+        printf("message: %s\n", msg_buff);
+        request += msg_buff;
+        break;
+    }while(msg_buff <= 0);
+
+    request = msg_buff;
+    handle_message(comm_port, request);
+    ++avail_threads;
+}
+
+void wait_for_client(server_settings * srv_info)
+{
+    printf("Waiting for client\n");
+    printf("Port: %i", srv_info->server_sock);
+    unsigned int client_sock = 0;
+    while(!g_shutdown)
+    {
+        if(avail_threads > 0)
+        {
+            if((client_sock = timed_accept(srv_info->server_sock,
+                            (struct sockaddr *) &srv_info->client_addr,
+                            &srv_info->client_len, 45)) < 0)
+                perror("accept timed out");
+            else
+            {
+                std::thread(handle_request, client_sock).detach();
+                --avail_threads;
+            }
+        }
+    }
+
+    close(srv_info->server_sock);
+    delete srv_info;
+}
+
+int main(int argc, char * argv[])
+{
+    g_shutdown = false;
+    g_verbose = false;
+    char nameserver[BUFFER];
+    avail_threads = 100;
+    if(parse_args(argc, argv, nameserver) != 0)
+        return 1;
+    server_settings * srv_info = new server_settings;
+    memset(srv_info, 0, sizeof(server_settings));
+    if(start_server(srv_info) != 0)
+    {
+        delete srv_info;
+        return 2;
+    }
+
+    wait_for_client(srv_info);
+
+    printf("Closing and shutting down\n");
 
     return 0;
 }
@@ -190,7 +414,6 @@ bool send_dns_request(char* ns_name, char* name_to_resolve, vector<pair<string,s
     unsigned char buf[65536];
     //Receive the answer
 
-    /* why? is this needed? */
     int x;
     printf("\nReceiving answer...");
     if(timed_recvfrom(sock_fd, buf, 65536 , 0 , (struct sockaddr*)&dest , (socklen_t*)&x, 3) < 0)

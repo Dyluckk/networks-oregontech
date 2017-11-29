@@ -35,4 +35,20 @@ vector<string> Locked_Map::GetKeys()
     return keys;
 }
 
+string Locked_Map::Serialize()
+{
+    string serialized_string = "";
+    vector<string> keys = GetKeys();
+    for(unsigned int i = 0; i < keys.size(); ++i)
+    {
+        serialized_string += "{";
+        serialized_string += keys[i];
+        serialized_string += ":";
+        serialized_string += Find(keys[i]);
+        serialized_string += "}";
+    }
+
+    return serialized_string;
+}
+
 Locked_Map::~Locked_Map(){}
