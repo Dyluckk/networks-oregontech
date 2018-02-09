@@ -1,0 +1,95 @@
+restarting nameserver
+Tue Oct 17 20:33:01 PDT 2017
+oit_ns built: Oct 17 2017 20:23:37
+Bound to 3:0.0.0.0:50050
+Service: pwh_server_1 using port 51001
+Service: pwh_server_2 assigned port 50111
+Lookup for pwh_server_1 on port 51001
+Lookup for pwh_server_2 on port 50111
+Close for service pwh_server_1 on port 51001
+Close for service pwh_server_2 on port 50111
+restarting nameserver
+Tue Oct 17 20:35:01 PDT 2017
+oit_ns built: Oct 17 2017 20:31:37
+Bound to 3:0.0.0.0:50050
+Received DEFINE_PORT from 10.101.0.47:49817 
+Service: pwh_server_1 using port 51001
+Received REQUEST_PORT from 10.101.0.47:49817 
+Service: pwh_server_2 assigned port 50111
+Received LOOKUP_PORT from 10.101.0.47:49817 
+Lookup for pwh_server_1 on port 51001
+Received LOOKUP_PORT from 10.101.0.47:49817 
+Lookup for pwh_server_2 on port 50111
+Received CLOSE_PORT from 10.101.0.47:49817 
+Close for service pwh_server_1 on port 51001
+Received CLOSE_PORT from 10.101.0.47:49817 
+Close for service pwh_server_2 on port 50111
+Received invalid packet of length 56 from 10.101.0.47:48685
+Received invalid packet of length 56 from 10.101.0.47:48685
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
+FILE 3 DONE
